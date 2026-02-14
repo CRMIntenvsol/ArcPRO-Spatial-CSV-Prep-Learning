@@ -109,15 +109,32 @@ def main():
         parser = argparse.ArgumentParser(description="Batch convert PDFs to Markdown with OCR support.")
         parser.add_argument("input_dir", help="Directory containing PDF files")
         parser.add_argument("output_dir", help="Directory to save Markdown files")
+        parser.add_argument("--tesseract_cmd", help="Path to Tesseract executable (optional)", default=None)
         args = parser.parse_args()
+
         input_dir = args.input_dir
         output_dir = args.output_dir
+        tesseract_cmd = args.tesseract_cmd
     else:
         # Interactive mode
         print("Interactive Mode: Please enter the directory paths.")
         print("Note: You can paste Windows paths directly.")
+
+        # Ask for Tesseract path
+        print("\nOCR Configuration:")
+        tesseract_cmd = get_input("Enter path to Tesseract executable (leave empty if in PATH): ")
+
+        print("\nDirectories:")
         input_dir = get_input("Enter input directory containing PDFs: ")
         output_dir = get_input("Enter output directory for Markdown files: ")
+
+    # Configure Tesseract
+    if tesseract_cmd:
+        if os.path.isfile(tesseract_cmd):
+            pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+            print(f"Using Tesseract at: {tesseract_cmd}")
+        else:
+            print(f"Warning: Tesseract executable not found at '{tesseract_cmd}'. Utilizing system PATH instead.")
 
     if not os.path.isdir(input_dir):
         print(f"Error: Input directory '{input_dir}' not found.")
