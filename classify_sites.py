@@ -15,9 +15,9 @@ while True:
     except OverflowError:
         max_int = int(max_int/10)
 
-INPUT_FILE = '/tmp/p3_points_concatenated.csv'
-OUTPUT_FILE = '/tmp/p3_points_classified.csv'
-SYNONYMS_FILE = '/tmp/potential_synonyms.txt'
+INPUT_FILE = 'p3_points_concatenated.csv'
+OUTPUT_FILE = 'p3_points_classified.csv'
+SYNONYMS_FILE = 'potential_synonyms.txt'
 ARTIFACT_DB_FILE = 'extracted_artifacts.json'
 
 # --- 1. Keywords Definitions ---
