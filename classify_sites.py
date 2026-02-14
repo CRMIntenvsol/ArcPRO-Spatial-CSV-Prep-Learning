@@ -124,6 +124,14 @@ CLASS_3_SET = generate_variations(CLASS_3_KEYWORDS)
 BURNED_CLAY_SET = generate_variations(BURNED_CLAY_KEYWORDS)
 ROCK_MATERIAL_SET = generate_variations(ROCK_MATERIAL_KEYWORDS)
 
+BURNED_CLAY_RE = None
+CLASS_1_RE_LIST = []
+CLASS_2_RE_LIST = []
+CLASS_3_RE_LIST = []
+ROCK_MATERIAL_RE_LIST = []
+TIME_PERIOD_RE_LIST = []
+ARTIFACT_RE_LIST = []
+
 def clean_value(val):
     if val is None: return ""
     return str(val).replace('\r', ' ').replace('\n', ' ').replace('"', "'").strip()
@@ -181,9 +189,8 @@ def find_classes_robust(normalized_text):
     
     # Check Rock Presence with Negation Check
     rock_present = False
-    for rk in ROCK_MATERIAL_SET:
-        pattern = r'\b' + re.escape(rk) + r'\b'
-        for match in re.finditer(pattern, normalized_text):
+    for kw, regex in ROCK_MATERIAL_RE_LIST:
+        for match in regex.finditer(normalized_text):
             start = match.start()
             # Check negation for this rock match
             text_before = normalized_text[max(0, start-30):start]
@@ -192,10 +199,9 @@ def find_classes_robust(normalized_text):
                 break # Found at least one non-negated rock term
         if rock_present: break
             
-    def process_set(keyword_set, target_set, class_id):
-        for kw in keyword_set:
-            pattern = r'\b' + re.escape(kw) + r'\b'
-            for match in re.finditer(pattern, normalized_text):
+    def process_set(regex_list, target_set, class_id):
+        for kw, regex in regex_list:
+            for match in regex.finditer(normalized_text):
                 start, end = match.span()
                 
                 # 1. Negation Check
@@ -215,26 +221,22 @@ def find_classes_robust(normalized_text):
 
                 target_set.add(kw)
 
-    process_set(CLASS_1_SET, c1_found, 1)
-    process_set(CLASS_2_SET, c2_found, 2)
-    process_set(CLASS_3_SET, c3_found, 3)
+    process_set(CLASS_1_RE_LIST, c1_found, 1)
+    process_set(CLASS_2_RE_LIST, c2_found, 2)
+    process_set(CLASS_3_RE_LIST, c3_found, 3)
                  
     return c1_found, c2_found, c3_found
 
 def determine_time_period(normalized_text, artifact_db, is_prehistoric):
     found_periods = set()
     
-    sorted_tp_keywords = sorted(TIME_PERIOD_KEYWORDS.keys(), key=len, reverse=True)
-    for kw in sorted_tp_keywords:
-        norm_kw = normalize_text(kw)
-        if re.search(r'\b' + re.escape(norm_kw) + r'\b', normalized_text):
-            found_periods.add(TIME_PERIOD_KEYWORDS[kw])
+    for period_name, regex in TIME_PERIOD_RE_LIST:
+        if regex.search(normalized_text):
+            found_periods.add(period_name)
     
-    sorted_artifacts = sorted(artifact_db.keys(), key=len, reverse=True)
-    for artifact in sorted_artifacts:
-        norm_art = normalize_text(artifact)
-        if re.search(r'\b' + re.escape(norm_art) + r'\b', normalized_text):
-            found_periods.add(artifact_db[artifact])
+    for period_name, regex in ARTIFACT_RE_LIST:
+        if regex.search(normalized_text):
+            found_periods.add(period_name)
     
     if found_periods:
         return "; ".join(sorted(list(found_periods)))
@@ -261,7 +263,22 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
     CLASS_2_SET = {normalize_text(k) for k in CLASS_2_SET}
     CLASS_3_SET = {normalize_text(k) for k in CLASS_3_SET}
     BURNED_CLAY_SET = {normalize_text(k) for k in BURNED_CLAY_SET}
+    global BURNED_CLAY_RE
+    BURNED_CLAY_RE = re.compile(r'\b(?:' + '|'.join(re.escape(kw) for kw in BURNED_CLAY_SET) + r')\b')
     ROCK_MATERIAL_SET = {normalize_text(k) for k in ROCK_MATERIAL_SET}
+
+    global CLASS_1_RE_LIST, CLASS_2_RE_LIST, CLASS_3_RE_LIST, ROCK_MATERIAL_RE_LIST
+    CLASS_1_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_1_SET]
+    CLASS_2_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_2_SET]
+    CLASS_3_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_3_SET]
+    ROCK_MATERIAL_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in ROCK_MATERIAL_SET]
+
+    global TIME_PERIOD_RE_LIST, ARTIFACT_RE_LIST
+    sorted_tp_keywords = sorted(TIME_PERIOD_KEYWORDS.keys(), key=len, reverse=True)
+    TIME_PERIOD_RE_LIST = [(TIME_PERIOD_KEYWORDS[kw], re.compile(r'\b' + re.escape(normalize_text(kw)) + r'\b')) for kw in sorted_tp_keywords]
+
+    sorted_artifacts = sorted(artifact_db.keys(), key=len, reverse=True)
+    ARTIFACT_RE_LIST = [(artifact_db[art], re.compile(r'\b' + re.escape(normalize_text(art)) + r'\b')) for art in sorted_artifacts]
 
     unigrams = Counter()
     bigrams = Counter()
@@ -305,12 +322,7 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
                 c2 = len(c2_kws) > 0
                 c3 = len(c3_kws) > 0
                 
-                burned_clay_found = False
-                for kw in BURNED_CLAY_SET:
-                    norm_kw = normalize_text(kw)
-                    if re.search(r'\b' + re.escape(norm_kw) + r'\b', corrected_text):
-                        burned_clay_found = True
-                        break
+                burned_clay_found = bool(BURNED_CLAY_RE.search(corrected_text))
 
                 burned_clay_only = False
                 if burned_clay_found and not c1 and not c2 and not c3:
