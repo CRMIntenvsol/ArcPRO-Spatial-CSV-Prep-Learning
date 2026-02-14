@@ -64,15 +64,19 @@ def process_page(page, page_num, image_output_dir, filename_base):
 
     return "".join(md_content)
 
-def convert_pdf_to_md(pdf_path, output_dir):
+def convert_pdf_to_md(pdf_path, output_dir, force_overwrite=False):
     filename = os.path.basename(pdf_path)
     name_base = os.path.splitext(filename)[0]
+
+    md_filename = os.path.join(output_dir, f"{name_base}.md")
+
+    if os.path.exists(md_filename) and not force_overwrite:
+        print(f"Skipping {filename} (Markdown file already exists).")
+        return
 
     # Create directory for this PDF's assets (images)
     assets_dir = os.path.join(output_dir, "assets", name_base)
     os.makedirs(assets_dir, exist_ok=True)
-
-    md_filename = os.path.join(output_dir, f"{name_base}.md")
 
     print(f"Processing {filename}...")
 
@@ -104,17 +108,21 @@ def get_input(prompt):
     return val
 
 def main():
+    force_overwrite = False
+
     if len(sys.argv) > 1:
         # Command line arguments provided
         parser = argparse.ArgumentParser(description="Batch convert PDFs to Markdown with OCR support.")
         parser.add_argument("input_dir", help="Directory containing PDF files")
         parser.add_argument("output_dir", help="Directory to save Markdown files")
         parser.add_argument("--tesseract_cmd", help="Path to Tesseract executable (optional)", default=None)
+        parser.add_argument("--force", action="store_true", help="Force overwrite existing Markdown files")
         args = parser.parse_args()
 
         input_dir = args.input_dir
         output_dir = args.output_dir
         tesseract_cmd = args.tesseract_cmd
+        force_overwrite = args.force
     else:
         # Interactive mode
         print("Interactive Mode: Please enter the directory paths.")
@@ -127,6 +135,9 @@ def main():
         print("\nDirectories:")
         input_dir = get_input("Enter input directory containing PDFs: ")
         output_dir = get_input("Enter output directory for Markdown files: ")
+
+        overwrite_choice = get_input("Overwrite existing files? (y/n): ").lower()
+        force_overwrite = overwrite_choice.startswith('y')
 
     # Configure Tesseract
     if tesseract_cmd:
@@ -151,7 +162,7 @@ def main():
     print(f"Found {len(pdf_files)} PDF files. Starting conversion...")
 
     for pdf_file in pdf_files:
-        convert_pdf_to_md(os.path.join(input_dir, pdf_file), output_dir)
+        convert_pdf_to_md(os.path.join(input_dir, pdf_file), output_dir, force_overwrite)
 
     print("Batch conversion complete!")
 
