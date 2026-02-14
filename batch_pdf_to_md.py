@@ -47,20 +47,41 @@ def process_page(page, page_num, image_output_dir, filename_base):
             md_content.append("\n\n")
 
     # 4. Extract Images/Charts
-    # Note: pdfplumber extracts image objects, but visual charts are often vector paths which are hard to extract as "images".
-    # We will extract bitmap images found on the page.
+    # We will extract bitmap images found on the page using bounding boxes.
+    extracted_count = 0
     for i, img in enumerate(page.images):
         try:
-            # Get image data
-            # Note: This part can be tricky as pdfplumber provides image objects but not direct extraction methods easily.
-            # A more robust way for images is using the page.to_image() snapshot if we want to capture the visual layout.
-            # For this script, we will save the whole page as an image if it looks like a full-page chart/figure.
-            pass
+            # pdfplumber gives us the bounding box: (x0, top, x1, bottom)
+            bbox = (img['x0'], img['top'], img['x1'], img['bottom'])
+
+            # Skip tiny images (likely icons, lines, or bullets)
+            width = bbox[2] - bbox[0]
+            height = bbox[3] - bbox[1]
+            if width < 50 or height < 50:
+                continue
+
+            # Crop the image from the page snapshot
+            # Using higher resolution (300 DPI) for better quality
+            cropped_im = page.to_image(resolution=300).original.crop(
+                (bbox[0] * 300/72, bbox[1] * 300/72, bbox[2] * 300/72, bbox[3] * 300/72)
+            )
+
+            image_filename = f"{filename_base}_p{page_num}_img{i+1}.png"
+            image_path = os.path.join(image_output_dir, image_filename)
+            cropped_im.save(image_path)
+
+            # Add relative link to Markdown
+            # Use forward slashes for Markdown compatibility even on Windows
+            rel_path = f"assets/{filename_base}/{image_filename}"
+            md_content.append(f"\n![Image {i+1} - Page {page_num}]({rel_path})\n\n")
+            extracted_count += 1
+
         except Exception as e:
+            # Silently fail on image extraction errors to keep text flow
             pass
 
-    # As a fallback/feature: Save a snapshot of the page to assets if requested or if it looks like a figure
-    # For now, let's keep it text-focused to keep the script simple and fast.
+    if extracted_count > 0:
+        md_content.append(f"\n*Extracted {extracted_count} images/charts from Page {page_num}*\n\n")
 
     return "".join(md_content)
 
