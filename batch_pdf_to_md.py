@@ -94,19 +94,38 @@ def convert_pdf_to_md(pdf_path, output_dir):
     except Exception as e:
         print(f"Error processing {filename}: {e}")
 
-def main():
-    parser = argparse.ArgumentParser(description="Batch convert PDFs to Markdown with OCR support.")
-    parser.add_argument("input_dir", help="Directory containing PDF files")
-    parser.add_argument("output_dir", help="Directory to save Markdown files")
-    args = parser.parse_args()
+def get_input(prompt):
+    """
+    Robust input function that handles Windows paths and quotes.
+    """
+    val = input(prompt)
+    # Remove surrounding quotes if user pasted path with quotes
+    val = val.strip().strip('"').strip("'")
+    return val
 
-    if not os.path.isdir(args.input_dir):
-        print(f"Error: Input directory '{args.input_dir}' not found.")
+def main():
+    if len(sys.argv) > 1:
+        # Command line arguments provided
+        parser = argparse.ArgumentParser(description="Batch convert PDFs to Markdown with OCR support.")
+        parser.add_argument("input_dir", help="Directory containing PDF files")
+        parser.add_argument("output_dir", help="Directory to save Markdown files")
+        args = parser.parse_args()
+        input_dir = args.input_dir
+        output_dir = args.output_dir
+    else:
+        # Interactive mode
+        print("Interactive Mode: Please enter the directory paths.")
+        print("Note: You can paste Windows paths directly.")
+        input_dir = get_input("Enter input directory containing PDFs: ")
+        output_dir = get_input("Enter output directory for Markdown files: ")
+
+    if not os.path.isdir(input_dir):
+        print(f"Error: Input directory '{input_dir}' not found.")
         sys.exit(1)
 
-    os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
-    pdf_files = [f for f in os.listdir(args.input_dir) if f.lower().endswith('.pdf')]
+    pdf_files = [f for f in os.listdir(input_dir) if f.lower().endswith('.pdf')]
 
     if not pdf_files:
         print("No PDF files found in the input directory.")
@@ -115,7 +134,7 @@ def main():
     print(f"Found {len(pdf_files)} PDF files. Starting conversion...")
 
     for pdf_file in pdf_files:
-        convert_pdf_to_md(os.path.join(args.input_dir, pdf_file), args.output_dir)
+        convert_pdf_to_md(os.path.join(input_dir, pdf_file), output_dir)
 
     print("Batch conversion complete!")
 
