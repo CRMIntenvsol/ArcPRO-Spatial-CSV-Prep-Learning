@@ -1,0 +1,8 @@
+Page 1:
+- Cores: Nodules with faceted platforms for flake removal. Types: unidirectional, bi-directional, multi-directional, bipolar, flake core, undetermined fragment.
+- Tested materials: Nodules with single flake removed from unprepared cortical platform.
+- Cobble unifaces: 2+ flakes unifacially removed along single edge.
+- Cobble bifaces: 2+ flakes bifacially removed from single edge. Heavy-duty chopping tools or cores.
+- Bifacial cores: Siliceous, >1 continuous bifacially retouched edge perimeter.
+- Hammerstone: Battering on unmodified cortical portion (end/perimeter).
+- Anvils: Repeated battering in isolated location (circular depression) on planar surface.

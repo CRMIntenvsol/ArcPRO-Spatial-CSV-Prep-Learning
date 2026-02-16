@@ -94,6 +94,22 @@ TIME_PERIOD_KEYWORDS = {
     "archaic": "Archaic"
 }
 
+# --- Soil & Geomorphology Rules ---
+SOIL_CONTEXT_RULES = {
+    "paleo_potential": {
+        "keywords": ["deep alluvium", "pleistocene terrace", "clay rich vertisol", "aubrey clovis", "holocene alluvium", "deeply buried", "buried soil", "paleosol"],
+        "inference": "High Probability: Paleoindian Context (Deep Alluvium)"
+    },
+    "archaic_campsite": {
+        "keywords": ["sandy loam terrace", "terrace sandy loam", "upland gravel", "lag gravel", "uvalde gravel", "sandy knoll"],
+        "inference": "Potential Archaic Context (Sandy Loam/Gravels)"
+    },
+    "late_prehistoric_floodplain": {
+        "keywords": ["floodplain silt", "active floodplain", "recent alluvium", "caddoan", "toyah phase", "sandy clay loam"],
+        "inference": "Potential Late Prehistoric Context (Floodplain)"
+    }
+}
+
 # --- 2. Helper Functions ---
 
 def load_artifact_db():
@@ -249,6 +265,15 @@ def determine_time_period(normalized_text, artifact_db, is_prehistoric):
 
     return "Unknown"
 
+def infer_soil_context(text):
+    inferences = []
+    for rule_name, rule in SOIL_CONTEXT_RULES.items():
+        for kw in rule["keywords"]:
+            if kw in text:
+                inferences.append(rule["inference"])
+                break
+    return "; ".join(inferences)
+
 def get_ngrams(text, n):
     words = text.split()
     if len(words) < n: return []
@@ -286,7 +311,8 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
             'Class_2_Found', 'Class_2_Keywords',
             'Class_3_Found', 'Class_3_Keywords',
             'Burned_Clay_Found', 'Burned_Clay_Only',
-            'Is_Prehistoric', 'Learned_Time_Period', 'Prehistoric_Evidence'
+            'Is_Prehistoric', 'Learned_Time_Period', 'Prehistoric_Evidence',
+            'Soil_Inferred_Context'
         ]
 
         base_fieldnames = [f for f in fieldnames if f not in new_cols]
@@ -330,6 +356,7 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
                 is_prehistoric = len(prehist_evidence) > 0
 
                 time_period = determine_time_period(corrected_text, artifact_db, is_prehistoric)
+                soil_context = infer_soil_context(corrected_text)
 
                 clean_row['Normalized_Text'] = corrected_text
                 clean_row['Class_1_Found'] = c1
@@ -343,6 +370,7 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
                 clean_row['Is_Prehistoric'] = is_prehistoric
                 clean_row['Learned_Time_Period'] = time_period
                 clean_row['Prehistoric_Evidence'] = "; ".join(prehist_evidence)
+                clean_row['Soil_Inferred_Context'] = soil_context
 
                 # Filter output dict to match new_fieldnames
                 output_row = {k: clean_row.get(k, '') for k in new_fieldnames}
