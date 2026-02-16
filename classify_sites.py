@@ -91,6 +91,9 @@ TIME_PERIOD_KEYWORDS = {
     "neo-american": "Archaic - Transitional/NeoAmerican",
     "terminal archaic": "Archaic - Transitional/Terminal",
     "paleoindian": "Paleoindian",
+    "early archaic": "Early Archaic",
+    "middle archaic": "Middle Archaic",
+    "late archaic": "Late Archaic",
     "archaic": "Archaic"
 }
 
@@ -356,6 +359,11 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
                 is_prehistoric = len(prehist_evidence) > 0
 
                 time_period = determine_time_period(corrected_text, artifact_db, is_prehistoric)
+
+                # Update Is_Prehistoric if a specific prehistoric period was identified
+                if time_period and ("Prehistoric" in time_period or "Archaic" in time_period or "Paleo" in time_period):
+                    is_prehistoric = True
+
                 soil_context = infer_soil_context(corrected_text)
 
                 clean_row['Normalized_Text'] = corrected_text
@@ -424,7 +432,9 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
             print(f"Error writing synonyms file: {e}")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    if len(sys.argv) > 2:
+        main(sys.argv[1], sys.argv[2])
+    elif len(sys.argv) > 1 and sys.argv[1] == 'test':
         main('test_edge_cases.csv', 'test_results.csv')
     else:
         main()
