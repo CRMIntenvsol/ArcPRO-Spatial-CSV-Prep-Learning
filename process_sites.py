@@ -1,5 +1,7 @@
 import csv
 import sys
+import argparse
+import os
 
 # Increase CSV field size limit to handle large fields
 # Handle OverflowError on Windows by finding the max supported integer
@@ -57,10 +59,22 @@ def should_skip(val):
     v = clean_value(val).lower()
     return v in ['no data', 'false', '']
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Process site data.')
+    parser.add_argument('--input', '-i', default='p3_points_export_for_cleaning.csv', help='Input CSV file path')
+    parser.add_argument('--output', '-o', default='p3_points_concatenated.csv', help='Output CSV file path')
+    return parser.parse_args()
+
 def main():
-    print(f"Reading from {INPUT_FILE}...")
+    args = parse_arguments()
+
+    if not os.path.exists(args.input):
+        print(f"Error: Input file '{args.input}' not found.")
+        sys.exit(1)
+
+    print(f"Reading from {args.input}...")
     
-    with open(INPUT_FILE, 'r', encoding='utf-8', errors='replace', newline='') as fin:
+    with open(args.input, 'r', encoding='utf-8', errors='replace', newline='') as fin:
         reader = csv.DictReader(fin)
         fieldnames = reader.fieldnames if reader.fieldnames else []
         
@@ -74,8 +88,8 @@ def main():
         base_fieldnames = [f for f in fieldnames if f != 'Concat_site_variables']
         new_fieldnames = base_fieldnames + ['Concat_site_variables']
         
-        print(f"Writing to {OUTPUT_FILE}...")
-        with open(OUTPUT_FILE, 'w', encoding='utf-8', newline='') as fout:
+        print(f"Writing to {args.output}...")
+        with open(args.output, 'w', encoding='utf-8', newline='') as fout:
             writer = csv.DictWriter(fout, fieldnames=new_fieldnames)
             writer.writeheader()
             
