@@ -288,7 +288,7 @@ The final step aggregates the site-level data to produce:
 - **Visualizations:** Bar charts for class distribution and time periods, and pie charts for prehistoric context.
 """)
 
-def main():
+def main(input_file=DEFAULT_INPUT_FILE):
     print("--- Burned Rock Analysis Tool ---")
 
     # Priority:
@@ -313,4 +313,9 @@ def main():
     print(f"\nAnalysis complete. Report and charts saved to: {os.path.abspath(REPORT_DIR)}")
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate reports and charts from classified site data.")
+    parser.add_argument("input", nargs="?", default=DEFAULT_INPUT_FILE, help="Path to the input classified CSV file.")
+    args = parser.parse_args()
+
+    main(args.input)

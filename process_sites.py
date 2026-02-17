@@ -106,6 +106,10 @@ def should_skip(val):
     v = csv_utils_helpers.clean_value(val, lower=True)
     return v in ['no data', 'false', '']
 
+def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
+    print(f"Reading from {input_file}...")
+    
+    with open(input_file, 'r', encoding='utf-8', errors='replace', newline='') as fin:
 def main(input_file=None, output_file=None, config_file=DEFAULT_CONFIG_FILE):
     # Load Config
     config = load_config(config_file)
@@ -179,6 +183,8 @@ def main():
         base_fieldnames = [f for f in fieldnames if f != 'Concat_site_variables']
         new_fieldnames = base_fieldnames + ['Concat_site_variables']
         
+        print(f"Writing to {output_file}...")
+        with open(output_file, 'w', encoding='utf-8', newline='') as fout:
         print(f"Writing to {args.output}...")
         with open(args.output, 'w', encoding='utf-8', newline='') as fout:
             writer = csv.DictWriter(fout, fieldnames=new_fieldnames)
@@ -266,6 +272,11 @@ def main():
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Concatenate site variables from a CSV file.")
+    parser.add_argument("input", nargs="?", default=INPUT_FILE, help="Path to the input CSV file.")
+    parser.add_argument("output", nargs="?", default=OUTPUT_FILE, help="Path to the output CSV file.")
+    args = parser.parse_args()
+
+    main(args.input, args.output)
     parser.add_argument("--input", "-i", help="Path to the input CSV file.")
     parser.add_argument("--output", "-o", help="Path to the output CSV file.")
     parser.add_argument("--config", "-c", default=DEFAULT_CONFIG_FILE, help="Path to the JSON config file.")
