@@ -11,8 +11,8 @@ while True:
     except OverflowError:
         max_int = int(max_int/10)
 
-INPUT_FILE = '/tmp/file_attachments/Analysis/p3_points_export_for_cleaning.csv'
-OUTPUT_FILE = '/tmp/p3_points_concatenated.csv'
+INPUT_FILE = 'p3_points_export_for_cleaning.csv'
+OUTPUT_FILE = 'p3_points_concatenated.csv'
 
 COLUMNS_TO_CONCAT = [
     'type_site',
@@ -57,10 +57,10 @@ def should_skip(val):
     v = clean_value(val).lower()
     return v in ['no data', 'false', '']
 
-def main():
-    print(f"Reading from {INPUT_FILE}...")
+def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
+    print(f"Reading from {input_file}...")
     
-    with open(INPUT_FILE, 'r', encoding='utf-8', errors='replace', newline='') as fin:
+    with open(input_file, 'r', encoding='utf-8', errors='replace', newline='') as fin:
         reader = csv.DictReader(fin)
         fieldnames = reader.fieldnames if reader.fieldnames else []
         
@@ -74,8 +74,8 @@ def main():
         base_fieldnames = [f for f in fieldnames if f != 'Concat_site_variables']
         new_fieldnames = base_fieldnames + ['Concat_site_variables']
         
-        print(f"Writing to {OUTPUT_FILE}...")
-        with open(OUTPUT_FILE, 'w', encoding='utf-8', newline='') as fout:
+        print(f"Writing to {output_file}...")
+        with open(output_file, 'w', encoding='utf-8', newline='') as fout:
             writer = csv.DictWriter(fout, fieldnames=new_fieldnames)
             writer.writeheader()
             
@@ -103,4 +103,10 @@ def main():
             print(f"Finished processing {row_count} rows.")
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Concatenate site variables from a CSV file.")
+    parser.add_argument("input", nargs="?", default=INPUT_FILE, help="Path to the input CSV file.")
+    parser.add_argument("output", nargs="?", default=OUTPUT_FILE, help="Path to the output CSV file.")
+    args = parser.parse_args()
+
+    main(args.input, args.output)

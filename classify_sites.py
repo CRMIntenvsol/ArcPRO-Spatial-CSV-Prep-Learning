@@ -15,9 +15,9 @@ while True:
     except OverflowError:
         max_int = int(max_int/10)
 
-INPUT_FILE = '/tmp/p3_points_concatenated.csv'
-OUTPUT_FILE = '/tmp/p3_points_classified.csv'
-SYNONYMS_FILE = '/tmp/potential_synonyms.txt'
+INPUT_FILE = 'p3_points_concatenated.csv'
+OUTPUT_FILE = 'p3_points_classified.csv'
+SYNONYMS_FILE = 'potential_synonyms.txt'
 ARTIFACT_DB_FILE = 'extracted_artifacts.json'
 
 # --- 1. Keywords Definitions ---
@@ -387,7 +387,14 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
         print(f"Frequency analysis written to {SYNONYMS_FILE}")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    import argparse
+    parser = argparse.ArgumentParser(description="Classify archaeological sites based on text descriptions.")
+    parser.add_argument("input", nargs="?", default=INPUT_FILE, help="Path to the input concatenated CSV file.")
+    parser.add_argument("output", nargs="?", default=OUTPUT_FILE, help="Path to the output classified CSV file.")
+    parser.add_argument("--test", action="store_true", help="Run in test mode with dummy data.")
+    args = parser.parse_args()
+
+    if args.test:
         main('test_edge_cases.csv', 'test_results.csv')
     else:
-        main()
+        main(args.input, args.output)

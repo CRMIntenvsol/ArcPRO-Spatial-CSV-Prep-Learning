@@ -20,7 +20,7 @@ while True:
     except OverflowError:
         max_int = int(max_int/10)
 
-DEFAULT_INPUT_FILE = OUTPUT_FILE = r'J:/Physical Share Copy/Stephanie/Southgate Output/p4_points_classify.csv'
+DEFAULT_INPUT_FILE = 'p3_points_classified.csv'
 REPORT_DIR = 'Burned_Rock_Report'
 
 def ensure_dir(directory):
@@ -291,11 +291,8 @@ The final step aggregates the site-level data to produce:
 - **Visualizations:** Bar charts for class distribution and time periods, and pie charts for prehistoric context.
 """)
 
-def main():
+def main(input_file=DEFAULT_INPUT_FILE):
     print("--- Burned Rock Analysis Tool ---")
-    input_file = DEFAULT_INPUT_FILE
-    if len(sys.argv) > 1:
-        input_file = sys.argv[1]
     
     ensure_dir(REPORT_DIR)
     
@@ -307,4 +304,9 @@ def main():
     print(f"\nAnalysis complete. Report and charts saved to: {os.path.abspath(REPORT_DIR)}")
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate reports and charts from classified site data.")
+    parser.add_argument("input", nargs="?", default=DEFAULT_INPUT_FILE, help="Path to the input classified CSV file.")
+    args = parser.parse_args()
+
+    main(args.input)
