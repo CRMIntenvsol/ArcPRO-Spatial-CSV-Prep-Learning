@@ -124,14 +124,6 @@ CLASS_3_SET = generate_variations(CLASS_3_KEYWORDS)
 BURNED_CLAY_SET = generate_variations(BURNED_CLAY_KEYWORDS)
 ROCK_MATERIAL_SET = generate_variations(ROCK_MATERIAL_KEYWORDS)
 
-BURNED_CLAY_RE = None
-CLASS_1_RE_LIST = []
-CLASS_2_RE_LIST = []
-CLASS_3_RE_LIST = []
-ROCK_MATERIAL_RE_LIST = []
-TIME_PERIOD_RE_LIST = []
-ARTIFACT_RE_LIST = []
-
 def clean_value(val):
     if val is None: return ""
     return str(val).replace('\r', ' ').replace('\n', ' ').replace('"', "'").strip()
@@ -178,107 +170,112 @@ def is_excluded_context(text_around, keyword):
                     return True
     return False
 
-def find_classes_robust(normalized_text):
-    """
-    Robust classification handling negation, context exclusion, and dependencies.
-    Runs on pre-corrected text.
-    """
-    c1_found = set()
-    c2_found = set()
-    c3_found = set()
-    
-    # Check Rock Presence with Negation Check
-    rock_present = False
-    for kw, regex in ROCK_MATERIAL_RE_LIST:
-        for match in regex.finditer(normalized_text):
-            start = match.start()
-            # Check negation for this rock match
-            text_before = normalized_text[max(0, start-30):start]
-            if not is_negated(text_before):
-                rock_present = True
-                break # Found at least one non-negated rock term
-        if rock_present: break
-            
-    def process_set(regex_list, target_set, class_id):
-        for kw, regex in regex_list:
-            for match in regex.finditer(normalized_text):
-                start, end = match.span()
-                
-                # 1. Negation Check
-                text_before = normalized_text[max(0, start-30):start]
-                if is_negated(text_before):
-                    continue 
-                
-                # 2. Context Exclusion
-                text_around = normalized_text[max(0, start-50):min(len(normalized_text), end+50)]
-                if is_excluded_context(text_around, kw):
-                    continue
-                    
-                # 3. Dependency Check (Specific to Class 2 'hearth')
-                if class_id == 2:
-                    if (kw == "hearth" or kw == "hearths") and not rock_present:
-                         continue
-
-                target_set.add(kw)
-
-    process_set(CLASS_1_RE_LIST, c1_found, 1)
-    process_set(CLASS_2_RE_LIST, c2_found, 2)
-    process_set(CLASS_3_RE_LIST, c3_found, 3)
-                 
-    return c1_found, c2_found, c3_found
-
-def determine_time_period(normalized_text, artifact_db, is_prehistoric):
-    found_periods = set()
-    
-    for period_name, regex in TIME_PERIOD_RE_LIST:
-        if regex.search(normalized_text):
-            found_periods.add(period_name)
-    
-    for period_name, regex in ARTIFACT_RE_LIST:
-        if regex.search(normalized_text):
-            found_periods.add(period_name)
-    
-    if found_periods:
-        return "; ".join(sorted(list(found_periods)))
-
-    if is_prehistoric:
-        return "Inferred: Prehistoric"
-    
-    if "historic" in normalized_text:
-        return "Inferred: Historic"
-        
-    return "Unknown"
-
 def get_ngrams(text, n):
     words = text.split()
     if len(words) < n: return []
     return [' '.join(words[i:i+n]) for i in range(len(words)-n+1)]
 
+class SiteClassifier:
+    def __init__(self, artifact_db=None):
+        if artifact_db is None:
+            self.artifact_db = load_artifact_db()
+        else:
+            self.artifact_db = artifact_db
+
+        # Normalize sets and compile regexes
+        self.class_1_re_list = self._compile_regex_list(CLASS_1_SET)
+        self.class_2_re_list = self._compile_regex_list(CLASS_2_SET)
+        self.class_3_re_list = self._compile_regex_list(CLASS_3_SET)
+        self.rock_material_re_list = self._compile_regex_list(ROCK_MATERIAL_SET)
+
+        normalized_burned_clay = {normalize_text(k) for k in BURNED_CLAY_SET}
+        self.burned_clay_re = re.compile(r'\b(?:' + '|'.join(re.escape(kw) for kw in normalized_burned_clay) + r')\b')
+
+        sorted_tp_keywords = sorted(TIME_PERIOD_KEYWORDS.keys(), key=len, reverse=True)
+        self.time_period_re_list = [(TIME_PERIOD_KEYWORDS[kw], re.compile(r'\b' + re.escape(normalize_text(kw)) + r'\b')) for kw in sorted_tp_keywords]
+
+        sorted_artifacts = sorted(self.artifact_db.keys(), key=len, reverse=True)
+        self.artifact_re_list = [(self.artifact_db[art], re.compile(r'\b' + re.escape(normalize_text(art)) + r'\b')) for art in sorted_artifacts]
+
+    def _compile_regex_list(self, keyword_set):
+        normalized = {normalize_text(k) for k in keyword_set}
+        return [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in normalized]
+
+    def find_classes_robust(self, normalized_text):
+        """
+        Robust classification handling negation, context exclusion, and dependencies.
+        Runs on pre-corrected text.
+        """
+        c1_found = set()
+        c2_found = set()
+        c3_found = set()
+
+        # Check Rock Presence with Negation Check
+        rock_present = False
+        for kw, regex in self.rock_material_re_list:
+            for match in regex.finditer(normalized_text):
+                start = match.start()
+                # Check negation for this rock match
+                text_before = normalized_text[max(0, start-30):start]
+                if not is_negated(text_before):
+                    rock_present = True
+                    break # Found at least one non-negated rock term
+            if rock_present: break
+                
+        def process_set(regex_list, target_set, class_id):
+            for kw, regex in regex_list:
+                for match in regex.finditer(normalized_text):
+                    start, end = match.span()
+                    
+                    # 1. Negation Check
+                    text_before = normalized_text[max(0, start-30):start]
+                    if is_negated(text_before):
+                        continue
+
+                    # 2. Context Exclusion
+                    text_around = normalized_text[max(0, start-50):min(len(normalized_text), end+50)]
+                    if is_excluded_context(text_around, kw):
+                        continue
+
+                    # 3. Dependency Check (Specific to Class 2 'hearth')
+                    if class_id == 2:
+                        if (kw == "hearth" or kw == "hearths") and not rock_present:
+                             continue
+
+                    target_set.add(kw)
+
+        process_set(self.class_1_re_list, c1_found, 1)
+        process_set(self.class_2_re_list, c2_found, 2)
+        process_set(self.class_3_re_list, c3_found, 3)
+
+        return c1_found, c2_found, c3_found
+
+    def determine_time_period(self, normalized_text, is_prehistoric):
+        found_periods = set()
+
+        for period_name, regex in self.time_period_re_list:
+            if regex.search(normalized_text):
+                found_periods.add(period_name)
+        
+        for period_name, regex in self.artifact_re_list:
+            if regex.search(normalized_text):
+                found_periods.add(period_name)
+
+        if found_periods:
+            return "; ".join(sorted(list(found_periods)))
+
+        if is_prehistoric:
+            return "Inferred: Prehistoric"
+
+        if "historic" in normalized_text:
+            return "Inferred: Historic"
+
+        return "Unknown"
+
 def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
     print("Preparing word banks and artifact DB...")
-    artifact_db = load_artifact_db()
     
-    global CLASS_1_SET, CLASS_2_SET, CLASS_3_SET, BURNED_CLAY_SET, ROCK_MATERIAL_SET
-    CLASS_1_SET = {normalize_text(k) for k in CLASS_1_SET}
-    CLASS_2_SET = {normalize_text(k) for k in CLASS_2_SET}
-    CLASS_3_SET = {normalize_text(k) for k in CLASS_3_SET}
-    BURNED_CLAY_SET = {normalize_text(k) for k in BURNED_CLAY_SET}
-    global BURNED_CLAY_RE
-    BURNED_CLAY_RE = re.compile(r'\b(?:' + '|'.join(re.escape(kw) for kw in BURNED_CLAY_SET) + r')\b')
-    ROCK_MATERIAL_SET = {normalize_text(k) for k in ROCK_MATERIAL_SET}
-
-    global CLASS_1_RE_LIST, CLASS_2_RE_LIST, CLASS_3_RE_LIST, ROCK_MATERIAL_RE_LIST
-    CLASS_1_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_1_SET]
-    CLASS_2_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_2_SET]
-    CLASS_3_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_3_SET]
-    ROCK_MATERIAL_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in ROCK_MATERIAL_SET]
-
-    global TIME_PERIOD_RE_LIST, ARTIFACT_RE_LIST
-    sorted_tp_keywords = sorted(TIME_PERIOD_KEYWORDS.keys(), key=len, reverse=True)
-    TIME_PERIOD_RE_LIST = [(TIME_PERIOD_KEYWORDS[kw], re.compile(r'\b' + re.escape(normalize_text(kw)) + r'\b')) for kw in sorted_tp_keywords]
-
-    sorted_artifacts = sorted(artifact_db.keys(), key=len, reverse=True)
-    ARTIFACT_RE_LIST = [(artifact_db[art], re.compile(r'\b' + re.escape(normalize_text(art)) + r'\b')) for art in sorted_artifacts]
+    classifier = SiteClassifier()
 
     unigrams = Counter()
     bigrams = Counter()
@@ -316,13 +313,13 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
                 normalized_text = normalize_text(original_text)
                 
                 corrected_text = correct_typos(normalized_text)
-                c1_kws, c2_kws, c3_kws = find_classes_robust(corrected_text)
+                c1_kws, c2_kws, c3_kws = classifier.find_classes_robust(corrected_text)
                 
                 c1 = len(c1_kws) > 0
                 c2 = len(c2_kws) > 0
                 c3 = len(c3_kws) > 0
                 
-                burned_clay_found = bool(BURNED_CLAY_RE.search(corrected_text))
+                burned_clay_found = bool(classifier.burned_clay_re.search(corrected_text))
 
                 burned_clay_only = False
                 if burned_clay_found and not c1 and not c2 and not c3:
@@ -335,7 +332,7 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
                 
                 is_prehistoric = len(prehist_evidence) > 0
                 
-                time_period = determine_time_period(corrected_text, artifact_db, is_prehistoric)
+                time_period = classifier.determine_time_period(corrected_text, is_prehistoric)
                 
                 clean_row['Normalized_Text'] = corrected_text
                 clean_row['Class_1_Found'] = c1
