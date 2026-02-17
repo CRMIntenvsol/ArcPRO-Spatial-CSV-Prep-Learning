@@ -1,4 +1,8 @@
 import csv
+import csv_utils_helpers
+
+# Increase CSV field size limit to handle large fields
+csv_utils_helpers.increase_csv_field_size_limit()
 import json
 import os
 import csv_utils_helpers
@@ -180,6 +184,10 @@ def main():
             writer = csv.DictWriter(fout, fieldnames=new_fieldnames)
             writer.writeheader()
             
+            row_count = 0
+            for row in reader:
+                # Clean all fields in the row to ensure no newlines exist in the output
+                clean_row = {k: csv_utils_helpers.clean_value(v) for k, v in row.items()}
             # Add the new column to fieldnames
             base_fieldnames = [f for f in fieldnames if f != 'Concat_site_variables']
             new_fieldnames = base_fieldnames + ['Concat_site_variables']
