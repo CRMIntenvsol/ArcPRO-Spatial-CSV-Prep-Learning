@@ -2,6 +2,7 @@ import csv
 import sys
 import os
 from collections import Counter
+import csv_utils_helpers
 
 # Try to import plotting libraries (standard in ArcPro/Anaconda)
 try:
@@ -12,13 +13,7 @@ except ImportError:
     print("Warning: matplotlib not found. Charts will not be generated.")
 
 # Increase CSV field size limit for Windows/Large fields
-max_int = sys.maxsize
-while True:
-    try:
-        csv.field_size_limit(max_int)
-        break
-    except OverflowError:
-        max_int = int(max_int/10)
+csv_utils_helpers.increase_csv_field_size_limit()
 
 DEFAULT_INPUT_FILE = OUTPUT_FILE = r'J:/Physical Share Copy/Stephanie/Southgate Output/p4_points_classify.csv'
 REPORT_DIR = 'Burned_Rock_Report'
@@ -26,10 +21,6 @@ REPORT_DIR = 'Burned_Rock_Report'
 def ensure_dir(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
-
-def clean_value(val):
-    if not val: return ""
-    return val.lower().strip()
 
 def analyze_data(input_file):
     print(f"Reading data from {input_file}...")
@@ -58,16 +49,16 @@ def analyze_data(input_file):
                 stats['total'] += 1
                 
                 # Check Booleans case-insensitively for robustness
-                c1 = row.get('Class_1_Found', 'False').strip().lower() == 'true'
-                c2 = row.get('Class_2_Found', 'False').strip().lower() == 'true'
-                c3 = row.get('Class_3_Found', 'False').strip().lower() == 'true'
-                bc = row.get('Burned_Clay_Found', 'False').strip().lower() == 'true'
-                bc_only = row.get('Burned_Clay_Only', 'False').strip().lower() == 'true'
+                c1 = csv_utils_helpers.clean_value(row.get('Class_1_Found', 'False'), lower=True) == 'true'
+                c2 = csv_utils_helpers.clean_value(row.get('Class_2_Found', 'False'), lower=True) == 'true'
+                c3 = csv_utils_helpers.clean_value(row.get('Class_3_Found', 'False'), lower=True) == 'true'
+                bc = csv_utils_helpers.clean_value(row.get('Burned_Clay_Found', 'False'), lower=True) == 'true'
+                bc_only = csv_utils_helpers.clean_value(row.get('Burned_Clay_Only', 'False'), lower=True) == 'true'
                 
-                is_pre = row.get('Is_Prehistoric', 'False').strip().lower() == 'true'
+                is_pre = csv_utils_helpers.clean_value(row.get('Is_Prehistoric', 'False'), lower=True) == 'true'
                 
                 # Time Period
-                tp = row.get('Learned_Time_Period', 'Unknown').strip()
+                tp = csv_utils_helpers.clean_value(row.get('Learned_Time_Period', 'Unknown'))
                 if not tp: tp = 'Unknown'
                 stats['time_periods'][tp] += 1
 

@@ -5,15 +5,10 @@ import json
 import os
 import difflib
 from collections import Counter
+import csv_utils_helpers
 
 # Increase CSV field size limit
-max_int = sys.maxsize
-while True:
-    try:
-        csv.field_size_limit(max_int)
-        break
-    except OverflowError:
-        max_int = int(max_int/10)
+csv_utils_helpers.increase_csv_field_size_limit()
 
 INPUT_FILE = '/tmp/p3_points_concatenated.csv'
 OUTPUT_FILE = '/tmp/p3_points_classified.csv'
@@ -131,10 +126,6 @@ CLASS_3_RE_LIST = []
 ROCK_MATERIAL_RE_LIST = []
 TIME_PERIOD_RE_LIST = []
 ARTIFACT_RE_LIST = []
-
-def clean_value(val):
-    if val is None: return ""
-    return str(val).replace('\r', ' ').replace('\n', ' ').replace('"', "'").strip()
 
 def normalize_text(text):
     if not text: return ""
@@ -311,7 +302,7 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
             row_count = 0
             
             for row in reader:
-                clean_row = {k: clean_value(v) for k, v in row.items()}
+                clean_row = {k: csv_utils_helpers.clean_value(v) for k, v in row.items()}
                 original_text = clean_row.get('Concat_site_variables', '')
                 normalized_text = normalize_text(original_text)
                 

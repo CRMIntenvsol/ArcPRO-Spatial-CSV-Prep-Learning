@@ -1,15 +1,8 @@
 import csv
-import sys
+import csv_utils_helpers
 
 # Increase CSV field size limit to handle large fields
-# Handle OverflowError on Windows by finding the max supported integer
-max_int = sys.maxsize
-while True:
-    try:
-        csv.field_size_limit(max_int)
-        break
-    except OverflowError:
-        max_int = int(max_int/10)
+csv_utils_helpers.increase_csv_field_size_limit()
 
 INPUT_FILE = '/tmp/file_attachments/Analysis/p3_points_export_for_cleaning.csv'
 OUTPUT_FILE = '/tmp/p3_points_concatenated.csv'
@@ -44,17 +37,11 @@ COLUMNS_TO_CONCAT = [
     'unmatched'
 ]
 
-def clean_value(val):
-    if val is None:
-        return ""
-    # Replace newlines with spaces and double quotes with single quotes to ensure robust CSV structure
-    return str(val).replace('\r', ' ').replace('\n', ' ').replace('"', "'").strip()
-
 def should_skip(val):
     """
     Returns True if the value should be skipped (e.g. 'No Data', 'False', empty).
     """
-    v = clean_value(val).lower()
+    v = csv_utils_helpers.clean_value(val, lower=True)
     return v in ['no data', 'false', '']
 
 def main():
@@ -82,7 +69,7 @@ def main():
             row_count = 0
             for row in reader:
                 # Clean all fields in the row to ensure no newlines exist in the output
-                clean_row = {k: clean_value(v) for k, v in row.items()}
+                clean_row = {k: csv_utils_helpers.clean_value(v) for k, v in row.items()}
                 
                 concat_parts = []
                 for col in COLUMNS_TO_CONCAT:
