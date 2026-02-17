@@ -20,7 +20,7 @@ while True:
     except OverflowError:
         max_int = int(max_int/10)
 
-DEFAULT_INPUT_FILE = OUTPUT_FILE = r'J:/Physical Share Copy/Stephanie/Southgate Output/p4_points_classify.csv'
+DEFAULT_INPUT_FILE = r'J:/Physical Share Copy/Stephanie/Southgate Output/p4_points_classify.csv'
 REPORT_DIR = 'Burned_Rock_Report'
 
 def ensure_dir(directory):
