@@ -18,24 +18,21 @@ DEFAULT_COLUMNS_TO_CONCAT = [
     'env_desc', 'time_desc', 'site_size', 'basis', 'cult_desc',
     'basis_size', 'artifact', 'intact', 'value', 'invest',
     'disc_desc', 'unmatched'
+import csv_utils
 import sys
+import json
 import argparse
 import os
 
 # Increase CSV field size limit to handle large fields
-# Handle OverflowError on Windows by finding the max supported integer
-max_int = sys.maxsize
-while True:
-    try:
-        csv.field_size_limit(max_int)
-        break
-    except OverflowError:
-        max_int = int(max_int/10)
+csv_utils.increase_field_size_limit()
 
+DEFAULT_INPUT_FILE = '/tmp/file_attachments/Analysis/p3_points_export_for_cleaning.csv'
+DEFAULT_OUTPUT_FILE = '/tmp/p3_points_concatenated.csv'
 INPUT_FILE = 'p3_points_export_for_cleaning.csv'
 OUTPUT_FILE = 'p3_points_concatenated.csv'
 
-COLUMNS_TO_CONCAT = [
+DEFAULT_COLUMNS_TO_CONCAT = [
     'type_site',
     'explain',
     'additional',
@@ -73,6 +70,11 @@ def load_config(config_path):
     if not os.path.exists(config_path):
         print(f"Config file {config_path} not found. Using defaults.")
         return {}
+    Load configuration from a JSON file.
+    Returns a dictionary with configuration or None if loading fails.
+    """
+    if not os.path.exists(config_path):
+        return None
 
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
@@ -83,6 +85,15 @@ def load_config(config_path):
     except Exception as e:
         print(f"Error reading config file: {e}. Using defaults.")
         return {}
+    except Exception as e:
+        print(f"Error loading config file {config_path}: {e}")
+        return None
+
+def clean_value(val):
+    if val is None:
+        return ""
+    # Replace newlines with spaces and double quotes with single quotes to ensure robust CSV structure
+    return str(val).replace('\r', ' ').replace('\n', ' ').replace('"', "'").strip()
 
 def should_skip(val):
     """
@@ -118,6 +129,30 @@ def parse_arguments():
     return parser.parse_args()
 
 def main():
+    parser = argparse.ArgumentParser(description='Process site data and concatenate columns.')
+    parser.add_argument('--config', type=str, default='config.json', help='Path to configuration file')
+    args = parser.parse_args()
+
+    # Load configuration
+    config = load_config(args.config)
+    
+    if config:
+        print(f"Loaded configuration from {args.config}")
+        input_file = config.get('input_file', DEFAULT_INPUT_FILE)
+        output_file = config.get('output_file', DEFAULT_OUTPUT_FILE)
+        columns_to_concat = config.get('columns_to_concat', DEFAULT_COLUMNS_TO_CONCAT)
+    else:
+        print(f"Configuration file {args.config} not found or invalid. Using defaults.")
+        input_file = DEFAULT_INPUT_FILE
+        output_file = DEFAULT_OUTPUT_FILE
+        columns_to_concat = DEFAULT_COLUMNS_TO_CONCAT
+
+    print(f"Reading from {input_file}...")
+
+    try:
+        with open(input_file, 'r', encoding='utf-8', errors='replace', newline='') as fin:
+            reader = csv.DictReader(fin)
+            fieldnames = reader.fieldnames if reader.fieldnames else []
     args = parse_arguments()
 
     if not os.path.exists(args.input):
@@ -179,6 +214,46 @@ def main():
         print(f"Error: Input file '{input_path}' not found.")
     except Exception as e:
         print(f"An error occurred: {e}")
+            # Check if all target columns exist
+            missing_cols = [c for c in columns_to_concat if c not in fieldnames]
+            if missing_cols:
+                print(f"Warning: The following columns were not found in the input CSV: {missing_cols}")
+                # We will proceed but skip missing columns for concatenation
+
+            # Add the new column to fieldnames, ensuring no duplicates if re-running
+            base_fieldnames = [f for f in fieldnames if f != 'Concat_site_variables']
+            new_fieldnames = base_fieldnames + ['Concat_site_variables']
+
+            print(f"Writing to {output_file}...")
+            with open(output_file, 'w', encoding='utf-8', newline='') as fout:
+                writer = csv.DictWriter(fout, fieldnames=new_fieldnames)
+                writer.writeheader()
+                
+                row_count = 0
+                for row in reader:
+                    # Clean all fields in the row to ensure no newlines exist in the output
+                    clean_row = {k: clean_value(v) for k, v in row.items()}
+
+                    concat_parts = []
+                    for col in columns_to_concat:
+                        if col in clean_row:
+                            val = clean_row[col]
+                            if not should_skip(val):
+                                # Format: "Header: Value;"
+                                # Value is already cleaned of newlines
+                                concat_parts.append(f"{col}: {val};")
+
+                    clean_row['Concat_site_variables'] = " ".join(concat_parts)
+                    writer.writerow(clean_row)
+                    row_count += 1
+
+                    if row_count % 1000 == 0:
+                        print(f"Processed {row_count} rows...")
+                
+                print(f"Finished processing {row_count} rows.")
+    except FileNotFoundError:
+        print(f"Error: Input file '{input_file}' not found.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     import argparse

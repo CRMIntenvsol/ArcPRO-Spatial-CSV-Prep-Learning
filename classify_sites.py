@@ -18,6 +18,10 @@ while True:
         break
     except OverflowError:
         max_int = int(max_int/10)
+import csv_utils
+
+# Increase CSV field size limit
+csv_utils.increase_field_size_limit()
 
 INPUT_FILE = 'p3_points_concatenated.csv'
 OUTPUT_FILE = 'p3_points_classified.csv'
@@ -112,7 +116,7 @@ def load_artifact_db():
         try:
             with open(ARTIFACT_DB_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except Exception as e:
+        except (json.JSONDecodeError, OSError) as e:
             print(f"Warning: Could not load artifact DB: {e}")
             return {}
     return {}
