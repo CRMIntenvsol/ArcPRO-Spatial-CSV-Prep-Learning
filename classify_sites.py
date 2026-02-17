@@ -70,6 +70,11 @@ EXCLUSION_TERMS = {
     "hearth": ["fireplace", "chimney"]
 }
 
+EXCLUSION_REGEXES = {
+    base_kw: re.compile(r'\b(?:' + '|'.join(re.escape(term) for term in terms) + r')\b')
+    for base_kw, terms in EXCLUSION_TERMS.items() if terms
+}
+
 NEGATION_TERMS = ["no", "not", "non", "lack", "absence", "negative"]
 
 TIME_PERIOD_KEYWORDS = {
@@ -171,11 +176,10 @@ def is_negated(text_before, window=5):
     return False
 
 def is_excluded_context(text_around, keyword):
-    for base_kw, exclusion_list in EXCLUSION_TERMS.items():
-        if base_kw in keyword: 
-            for term in exclusion_list:
-                if re.search(r'\b' + re.escape(term) + r'\b', text_around):
-                    return True
+    for base_kw, regex in EXCLUSION_REGEXES.items():
+        if base_kw in keyword:
+            if regex.search(text_around):
+                return True
     return False
 
 def find_classes_robust(normalized_text):
