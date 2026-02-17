@@ -266,6 +266,24 @@ class SiteClassifier:
                         if (kw == "hearth" or kw == "hearths") and not rock_present:
                              continue
 
+def determine_time_period(normalized_text, artifact_db, is_prehistoric, time_period_re_list=None, artifact_re_list=None):
+    if time_period_re_list is None:
+        time_period_re_list = TIME_PERIOD_RE_LIST
+    if artifact_re_list is None:
+        artifact_re_list = ARTIFACT_RE_LIST
+
+    found_periods = set()
+    
+    for period_name, regex in time_period_re_list:
+        if regex.search(normalized_text):
+            found_periods.add(period_name)
+    
+    for period_name, regex in artifact_re_list:
+        if regex.search(normalized_text):
+            found_periods.add(period_name)
+    
+    if found_periods:
+        return "; ".join(sorted(list(found_periods)))
                     target_set.add(kw)
 
         process_set(self.class_1_re_list, c1_found, 1)
@@ -371,6 +389,7 @@ def main():
                 
                 is_prehistoric = len(prehist_evidence) > 0
                 
+                time_period = determine_time_period(corrected_text, artifact_db, is_prehistoric, TIME_PERIOD_RE_LIST, ARTIFACT_RE_LIST)
                 time_period = classifier.determine_time_period(corrected_text, is_prehistoric)
                 
                 clean_row['Normalized_Text'] = corrected_text
