@@ -7,6 +7,17 @@ import difflib
 import argparse
 import functools
 from collections import Counter
+import csv_utils_helpers
+
+# Increase CSV field size limit
+csv_utils_helpers.increase_csv_field_size_limit()
+max_int = sys.maxsize
+while True:
+    try:
+        csv.field_size_limit(max_int)
+        break
+    except OverflowError:
+        max_int = int(max_int/10)
 import csv_utils
 
 # Increase CSV field size limit
@@ -129,6 +140,13 @@ CLASS_3_SET = generate_variations(CLASS_3_KEYWORDS)
 BURNED_CLAY_SET = generate_variations(BURNED_CLAY_KEYWORDS)
 ROCK_MATERIAL_SET = generate_variations(ROCK_MATERIAL_KEYWORDS)
 
+BURNED_CLAY_RE = None
+CLASS_1_RE_LIST = []
+CLASS_2_RE_LIST = []
+CLASS_3_RE_LIST = []
+ROCK_MATERIAL_RE_LIST = []
+TIME_PERIOD_RE_LIST = []
+ARTIFACT_RE_LIST = []
 def clean_value(val):
     if val is None: return ""
     return str(val).replace('\r', ' ').replace('\n', ' ').replace('"', "'").strip()
@@ -329,7 +347,7 @@ def main():
             row_count = 0
             
             for row in reader:
-                clean_row = {k: clean_value(v) for k, v in row.items()}
+                clean_row = {k: csv_utils_helpers.clean_value(v) for k, v in row.items()}
                 original_text = clean_row.get('Concat_site_variables', '')
                 normalized_text = normalize_text(original_text)
                 
@@ -420,4 +438,15 @@ def main():
         print(f"Frequency analysis written to {SYNONYMS_FILE}")
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Classify archaeological sites based on text descriptions.")
+    parser.add_argument("input", nargs="?", default=INPUT_FILE, help="Path to the input concatenated CSV file.")
+    parser.add_argument("output", nargs="?", default=OUTPUT_FILE, help="Path to the output classified CSV file.")
+    parser.add_argument("--test", action="store_true", help="Run in test mode with dummy data.")
+    args = parser.parse_args()
+
+    if args.test:
+        main('test_edge_cases.csv', 'test_results.csv')
+    else:
+        main(args.input, args.output)
     main()
