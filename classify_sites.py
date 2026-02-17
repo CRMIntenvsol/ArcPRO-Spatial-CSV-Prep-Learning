@@ -78,6 +78,10 @@ EXCLUSION_TERMS = {
     "hearth": ["fireplace", "chimney"]
 }
 
+EXCLUSION_REGEXES = {
+    base_kw: re.compile(r'\b(?:' + '|'.join(re.escape(term) for term in terms) + r')\b')
+    for base_kw, terms in EXCLUSION_TERMS.items() if terms
+}
 EXCLUSION_REGEXES = {}
 for base_kw, exclusion_list in EXCLUSION_TERMS.items():
     if not exclusion_list:
