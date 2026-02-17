@@ -15,6 +15,7 @@ except ImportError:
 # Increase CSV field size limit for Windows/Large fields
 csv_utils.increase_field_size_limit()
 
+DEFAULT_INPUT_FILE = 'p3_points_classified.csv'
 DEFAULT_INPUT_FILE = r'J:/Physical Share Copy/Stephanie/Southgate Output/p4_points_classify.csv'
 DEFAULT_INPUT_FILE = os.environ.get('BURNED_ROCK_INPUT_FILE', 'classified_sites.csv')
 REPORT_DIR = 'Burned_Rock_Report'
@@ -285,9 +286,18 @@ The final step aggregates the site-level data to produce:
 
 def main():
     print("--- Burned Rock Analysis Tool ---")
-    input_file = DEFAULT_INPUT_FILE
+
+    # Priority:
+    # 1. Command line argument
+    # 2. Environment variable
+    # 3. Default relative path
+
     if len(sys.argv) > 1:
         input_file = sys.argv[1]
+    elif os.environ.get('BURNED_ROCK_INPUT_FILE'):
+        input_file = os.environ['BURNED_ROCK_INPUT_FILE']
+    else:
+        input_file = DEFAULT_INPUT_FILE
     
     ensure_dir(REPORT_DIR)
     
