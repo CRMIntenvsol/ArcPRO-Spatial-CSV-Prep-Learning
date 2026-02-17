@@ -1,2 +1,11 @@
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.log
+*.csv
+!expert_classified.csv
+!p3_points_export_for_cleaning.csv
