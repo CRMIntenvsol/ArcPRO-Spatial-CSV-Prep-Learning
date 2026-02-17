@@ -5,19 +5,14 @@ import json
 import os
 import difflib
 from collections import Counter
+import csv_utils_helpers
 
 # Increase CSV field size limit
-max_int = sys.maxsize
-while True:
-    try:
-        csv.field_size_limit(max_int)
-        break
-    except OverflowError:
-        max_int = int(max_int/10)
+csv_utils_helpers.increase_csv_field_size_limit()
 
-INPUT_FILE = '/tmp/p3_points_concatenated.csv'
-OUTPUT_FILE = '/tmp/p3_points_classified.csv'
-SYNONYMS_FILE = '/tmp/potential_synonyms.txt'
+INPUT_FILE = 'p3_points_concatenated.csv'
+OUTPUT_FILE = 'p3_points_classified.csv'
+SYNONYMS_FILE = 'potential_synonyms.txt'
 ARTIFACT_DB_FILE = 'extracted_artifacts.json'
 
 # --- 1. Keywords Definitions ---
@@ -69,6 +64,14 @@ EXCLUSION_TERMS = {
     "oven": ["stove", "enamel", "dutch", "microwave", "gas", "electric", "safe", "pottery", "ceramic"],
     "hearth": ["fireplace", "chimney"]
 }
+
+EXCLUSION_REGEXES = {}
+for base_kw, exclusion_list in EXCLUSION_TERMS.items():
+    if not exclusion_list:
+        continue
+    # Pre-compile exclusion patterns. Using a non-capturing group (?:...) for efficiency.
+    pattern = r'\b(?:' + '|'.join(re.escape(term) for term in exclusion_list) + r')\b'
+    EXCLUSION_REGEXES[base_kw] = re.compile(pattern)
 
 NEGATION_TERMS = ["no", "not", "non", "lack", "absence", "negative"]
 
@@ -132,10 +135,6 @@ ROCK_MATERIAL_RE_LIST = []
 TIME_PERIOD_RE_LIST = []
 ARTIFACT_RE_LIST = []
 
-def clean_value(val):
-    if val is None: return ""
-    return str(val).replace('\r', ' ').replace('\n', ' ').replace('"', "'").strip()
-
 def normalize_text(text):
     if not text: return ""
     text = text.lower()
@@ -171,11 +170,10 @@ def is_negated(text_before, window=5):
     return False
 
 def is_excluded_context(text_around, keyword):
-    for base_kw, exclusion_list in EXCLUSION_TERMS.items():
-        if base_kw in keyword: 
-            for term in exclusion_list:
-                if re.search(r'\b' + re.escape(term) + r'\b', text_around):
-                    return True
+    for base_kw, regex in EXCLUSION_REGEXES.items():
+        if base_kw in keyword:
+            if regex.search(text_around):
+                return True
     return False
 
 def find_classes_robust(normalized_text):
@@ -311,7 +309,7 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
             row_count = 0
             
             for row in reader:
-                clean_row = {k: clean_value(v) for k, v in row.items()}
+                clean_row = {k: csv_utils_helpers.clean_value(v) for k, v in row.items()}
                 original_text = clean_row.get('Concat_site_variables', '')
                 normalized_text = normalize_text(original_text)
                 
@@ -399,7 +397,14 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
         print(f"Frequency analysis written to {SYNONYMS_FILE}")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    import argparse
+    parser = argparse.ArgumentParser(description="Classify archaeological sites based on text descriptions.")
+    parser.add_argument("input", nargs="?", default=INPUT_FILE, help="Path to the input concatenated CSV file.")
+    parser.add_argument("output", nargs="?", default=OUTPUT_FILE, help="Path to the output classified CSV file.")
+    parser.add_argument("--test", action="store_true", help="Run in test mode with dummy data.")
+    args = parser.parse_args()
+
+    if args.test:
         main('test_edge_cases.csv', 'test_results.csv')
     else:
-        main()
+        main(args.input, args.output)
