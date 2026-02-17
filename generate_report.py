@@ -20,16 +20,12 @@ while True:
     except OverflowError:
         max_int = int(max_int/10)
 
-DEFAULT_INPUT_FILE = OUTPUT_FILE = r'J:/Physical Share Copy/Stephanie/Southgate Output/p4_points_classify.csv'
+DEFAULT_INPUT_FILE = os.environ.get('BURNED_ROCK_INPUT_FILE', 'classified_sites.csv')
 REPORT_DIR = 'Burned_Rock_Report'
 
 def ensure_dir(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
-
-def clean_value(val):
-    if not val: return ""
-    return val.lower().strip()
 
 def analyze_data(input_file):
     print(f"Reading data from {input_file}...")

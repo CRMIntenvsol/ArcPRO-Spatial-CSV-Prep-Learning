@@ -16,6 +16,8 @@ while True:
 
 DEFAULT_INPUT_FILE = '/tmp/file_attachments/Analysis/p3_points_export_for_cleaning.csv'
 DEFAULT_OUTPUT_FILE = '/tmp/p3_points_concatenated.csv'
+INPUT_FILE = 'p3_points_export_for_cleaning.csv'
+OUTPUT_FILE = 'p3_points_concatenated.csv'
 
 DEFAULT_COLUMNS_TO_CONCAT = [
     'type_site',
@@ -75,6 +77,12 @@ def should_skip(val):
     v = clean_value(val).lower()
     return v in ['no data', 'false', '']
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Process site data.')
+    parser.add_argument('--input', '-i', default='p3_points_export_for_cleaning.csv', help='Input CSV file path')
+    parser.add_argument('--output', '-o', default='p3_points_concatenated.csv', help='Output CSV file path')
+    return parser.parse_args()
+
 def main():
     parser = argparse.ArgumentParser(description='Process site data and concatenate columns.')
     parser.add_argument('--config', type=str, default='config.json', help='Path to configuration file')
@@ -100,6 +108,32 @@ def main():
         with open(input_file, 'r', encoding='utf-8', errors='replace', newline='') as fin:
             reader = csv.DictReader(fin)
             fieldnames = reader.fieldnames if reader.fieldnames else []
+    args = parse_arguments()
+
+    if not os.path.exists(args.input):
+        print(f"Error: Input file '{args.input}' not found.")
+        sys.exit(1)
+
+    print(f"Reading from {args.input}...")
+    
+    with open(args.input, 'r', encoding='utf-8', errors='replace', newline='') as fin:
+        reader = csv.DictReader(fin)
+        fieldnames = reader.fieldnames if reader.fieldnames else []
+        
+        # Check if all target columns exist
+        missing_cols = [c for c in COLUMNS_TO_CONCAT if c not in fieldnames]
+        if missing_cols:
+            print(f"Warning: The following columns were not found in the input CSV: {missing_cols}")
+            # We will proceed but skip missing columns for concatenation
+        
+        # Add the new column to fieldnames, ensuring no duplicates if re-running
+        base_fieldnames = [f for f in fieldnames if f != 'Concat_site_variables']
+        new_fieldnames = base_fieldnames + ['Concat_site_variables']
+        
+        print(f"Writing to {args.output}...")
+        with open(args.output, 'w', encoding='utf-8', newline='') as fout:
+            writer = csv.DictWriter(fout, fieldnames=new_fieldnames)
+            writer.writeheader()
             
             # Check if all target columns exist
             missing_cols = [c for c in columns_to_concat if c not in fieldnames]
