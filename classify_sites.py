@@ -4,6 +4,7 @@ import re
 import json
 import os
 import difflib
+import functools
 from collections import Counter
 
 # Increase CSV field size limit
@@ -143,6 +144,11 @@ def normalize_text(text):
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
+@functools.lru_cache(maxsize=32768)
+def _get_correction_cached(word):
+    matches = difflib.get_close_matches(word, TYPO_TARGETS, n=1, cutoff=0.85)
+    return matches[0] if matches else word
+
 def correct_typos(text):
     words = text.split()
     corrected_words = []
@@ -154,11 +160,8 @@ def correct_typos(text):
         if word in TYPO_TARGETS:
             corrected_words.append(word)
             continue
-        matches = difflib.get_close_matches(word, TYPO_TARGETS, n=1, cutoff=0.85)
-        if matches:
-            corrected_words.append(matches[0])
-        else:
-            corrected_words.append(word)
+
+        corrected_words.append(_get_correction_cached(word))
             
     return " ".join(corrected_words)
 
