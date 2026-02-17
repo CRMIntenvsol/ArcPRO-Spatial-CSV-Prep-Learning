@@ -254,32 +254,30 @@ def get_ngrams(text, n):
     if len(words) < n: return []
     return [' '.join(words[i:i+n]) for i in range(len(words)-n+1)]
 
+# --- Module Level Initialization ---
+
+print("Preparing word banks and artifact DB...")
+ARTIFACT_DB = load_artifact_db()
+
+CLASS_1_SET = {normalize_text(k) for k in CLASS_1_SET}
+CLASS_2_SET = {normalize_text(k) for k in CLASS_2_SET}
+CLASS_3_SET = {normalize_text(k) for k in CLASS_3_SET}
+BURNED_CLAY_SET = {normalize_text(k) for k in BURNED_CLAY_SET}
+BURNED_CLAY_RE = re.compile(r'\b(?:' + '|'.join(re.escape(kw) for kw in BURNED_CLAY_SET) + r')\b')
+ROCK_MATERIAL_SET = {normalize_text(k) for k in ROCK_MATERIAL_SET}
+
+CLASS_1_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_1_SET]
+CLASS_2_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_2_SET]
+CLASS_3_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_3_SET]
+ROCK_MATERIAL_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in ROCK_MATERIAL_SET]
+
+sorted_tp_keywords = sorted(TIME_PERIOD_KEYWORDS.keys(), key=len, reverse=True)
+TIME_PERIOD_RE_LIST = [(TIME_PERIOD_KEYWORDS[kw], re.compile(r'\b' + re.escape(normalize_text(kw)) + r'\b')) for kw in sorted_tp_keywords]
+
+sorted_artifacts = sorted(ARTIFACT_DB.keys(), key=len, reverse=True)
+ARTIFACT_RE_LIST = [(ARTIFACT_DB[art], re.compile(r'\b' + re.escape(normalize_text(art)) + r'\b')) for art in sorted_artifacts]
+
 def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
-    print("Preparing word banks and artifact DB...")
-    artifact_db = load_artifact_db()
-    
-    global CLASS_1_SET, CLASS_2_SET, CLASS_3_SET, BURNED_CLAY_SET, ROCK_MATERIAL_SET
-    CLASS_1_SET = {normalize_text(k) for k in CLASS_1_SET}
-    CLASS_2_SET = {normalize_text(k) for k in CLASS_2_SET}
-    CLASS_3_SET = {normalize_text(k) for k in CLASS_3_SET}
-    BURNED_CLAY_SET = {normalize_text(k) for k in BURNED_CLAY_SET}
-    global BURNED_CLAY_RE
-    BURNED_CLAY_RE = re.compile(r'\b(?:' + '|'.join(re.escape(kw) for kw in BURNED_CLAY_SET) + r')\b')
-    ROCK_MATERIAL_SET = {normalize_text(k) for k in ROCK_MATERIAL_SET}
-
-    global CLASS_1_RE_LIST, CLASS_2_RE_LIST, CLASS_3_RE_LIST, ROCK_MATERIAL_RE_LIST
-    CLASS_1_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_1_SET]
-    CLASS_2_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_2_SET]
-    CLASS_3_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_3_SET]
-    ROCK_MATERIAL_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in ROCK_MATERIAL_SET]
-
-    global TIME_PERIOD_RE_LIST, ARTIFACT_RE_LIST
-    sorted_tp_keywords = sorted(TIME_PERIOD_KEYWORDS.keys(), key=len, reverse=True)
-    TIME_PERIOD_RE_LIST = [(TIME_PERIOD_KEYWORDS[kw], re.compile(r'\b' + re.escape(normalize_text(kw)) + r'\b')) for kw in sorted_tp_keywords]
-
-    sorted_artifacts = sorted(artifact_db.keys(), key=len, reverse=True)
-    ARTIFACT_RE_LIST = [(artifact_db[art], re.compile(r'\b' + re.escape(normalize_text(art)) + r'\b')) for art in sorted_artifacts]
-
     unigrams = Counter()
     bigrams = Counter()
     trigrams = Counter()
@@ -335,7 +333,7 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
                 
                 is_prehistoric = len(prehist_evidence) > 0
                 
-                time_period = determine_time_period(corrected_text, artifact_db, is_prehistoric)
+                time_period = determine_time_period(corrected_text, ARTIFACT_DB, is_prehistoric)
                 
                 clean_row['Normalized_Text'] = corrected_text
                 clean_row['Class_1_Found'] = c1
