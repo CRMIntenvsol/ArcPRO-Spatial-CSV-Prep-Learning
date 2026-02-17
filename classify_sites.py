@@ -100,7 +100,7 @@ def load_artifact_db():
         try:
             with open(ARTIFACT_DB_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except Exception as e:
+        except (json.JSONDecodeError, OSError) as e:
             print(f"Warning: Could not load artifact DB: {e}")
             return {}
     return {}
