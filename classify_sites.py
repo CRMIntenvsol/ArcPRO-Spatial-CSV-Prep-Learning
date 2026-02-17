@@ -4,6 +4,7 @@ import re
 import json
 import os
 import difflib
+import argparse
 from collections import Counter
 
 # Increase CSV field size limit
@@ -15,9 +16,7 @@ while True:
     except OverflowError:
         max_int = int(max_int/10)
 
-INPUT_FILE = '/tmp/p3_points_concatenated.csv'
-OUTPUT_FILE = '/tmp/p3_points_classified.csv'
-SYNONYMS_FILE = '/tmp/potential_synonyms.txt'
+SYNONYMS_FILE = 'potential_synonyms.txt'
 ARTIFACT_DB_FILE = 'extracted_artifacts.json'
 
 # --- 1. Keywords Definitions ---
@@ -254,7 +253,22 @@ def get_ngrams(text, n):
     if len(words) < n: return []
     return [' '.join(words[i:i+n]) for i in range(len(words)-n+1)]
 
-def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Classify site data.')
+    parser.add_argument('--input', '-i', default='p3_points_concatenated.csv', help='Input CSV file path')
+    parser.add_argument('--output', '-o', default='p3_points_classified.csv', help='Output CSV file path')
+    parser.add_argument('--generate-synonyms', action='store_true', help='Generate synonyms file analysis')
+    return parser.parse_args()
+
+def main():
+    args = parse_arguments()
+    input_file = args.input
+    output_file = args.output
+
+    if not os.path.exists(input_file):
+        print(f"Error: Input file '{input_file}' not found.")
+        sys.exit(1)
+
     print("Preparing word banks and artifact DB...")
     artifact_db = load_artifact_db()
     
@@ -368,7 +382,10 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
 
     print(f"Finished processing {row_count} rows.")
     
-    if output_file == OUTPUT_FILE: 
+    # Logic to decide whether to generate synonyms
+    # If explicit flag is present OR if we are using the default output name (implying standard run)
+    is_default_output = (output_file == 'p3_points_classified.csv')
+    if args.generate_synonyms or is_default_output:
         print("Analyzing frequencies for potential synonyms...")
         with open(SYNONYMS_FILE, 'w', encoding='utf-8') as f_syn:
             f_syn.write("Potential Synonyms / High Frequency Terms Analysis\n")
@@ -399,7 +416,4 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
         print(f"Frequency analysis written to {SYNONYMS_FILE}")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == 'test':
-        main('test_edge_cases.csv', 'test_results.csv')
-    else:
-        main()
+    main()
