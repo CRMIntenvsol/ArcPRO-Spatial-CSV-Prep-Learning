@@ -27,10 +27,6 @@ def ensure_dir(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-def clean_value(val):
-    if not val: return ""
-    return val.lower().strip()
-
 def analyze_data(input_file):
     print(f"Reading data from {input_file}...")
     
