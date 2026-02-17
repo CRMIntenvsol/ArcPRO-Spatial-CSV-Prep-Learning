@@ -13,6 +13,9 @@ while True:
     except OverflowError:
         max_int = int(max_int/10)
 
+INPUT_FILE = 'p3_points_export_for_cleaning.csv'
+OUTPUT_FILE = 'p3_points_concatenated.csv'
+
 COLUMNS_TO_CONCAT = [
     'type_site',
     'explain',
