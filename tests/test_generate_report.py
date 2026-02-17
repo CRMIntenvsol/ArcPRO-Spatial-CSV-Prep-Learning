@@ -13,6 +13,10 @@ class TestGenerateReport(unittest.TestCase):
 
     def test_clean_value(self):
         """Test the clean_value helper function."""
+        self.assertEqual(generate_report.clean_value(None), "")
+        self.assertEqual(generate_report.clean_value(""), "")
+        self.assertEqual(generate_report.clean_value("  Test  "), "test")
+        self.assertEqual(generate_report.clean_value("VALUE"), "value")
         # Note: clean_value is now in csv_utils_helpers, but we can test it via import if needed
         # Or test how generate_report uses it.
         # For this test, let's verify generate_report imports it correctly or use csv_utils_helpers directly
@@ -148,6 +152,8 @@ class TestGenerateReport(unittest.TestCase):
             generate_report.write_methodology_report("output_dir")
             mock_file.assert_called()
 
+if __name__ == '__main__':
+    unittest.main()
 # Add parent directory to path to import modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
