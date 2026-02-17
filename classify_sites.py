@@ -7,15 +7,10 @@ import difflib
 import argparse
 import functools
 from collections import Counter
+import csv_utils
 
 # Increase CSV field size limit
-max_int = sys.maxsize
-while True:
-    try:
-        csv.field_size_limit(max_int)
-        break
-    except OverflowError:
-        max_int = int(max_int/10)
+csv_utils.increase_field_size_limit()
 
 INPUT_FILE = 'p3_points_concatenated.csv'
 OUTPUT_FILE = 'p3_points_classified.csv'
