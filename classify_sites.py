@@ -312,6 +312,17 @@ def determine_time_period(normalized_text, artifact_db, is_prehistoric, time_per
         if found_periods:
             return "; ".join(sorted(list(found_periods)))
 
+# --- Module Level Initialization ---
+
+print("Preparing word banks and artifact DB...")
+ARTIFACT_DB = load_artifact_db()
+
+CLASS_1_SET = {normalize_text(k) for k in CLASS_1_SET}
+CLASS_2_SET = {normalize_text(k) for k in CLASS_2_SET}
+CLASS_3_SET = {normalize_text(k) for k in CLASS_3_SET}
+BURNED_CLAY_SET = {normalize_text(k) for k in BURNED_CLAY_SET}
+BURNED_CLAY_RE = re.compile(r'\b(?:' + '|'.join(re.escape(kw) for kw in BURNED_CLAY_SET) + r')\b')
+ROCK_MATERIAL_SET = {normalize_text(k) for k in ROCK_MATERIAL_SET}
         if is_prehistoric:
             return "Inferred: Prehistoric"
 
@@ -441,6 +452,18 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
 
     setup_globals(artifact_db)
 
+CLASS_1_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_1_SET]
+CLASS_2_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_2_SET]
+CLASS_3_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_3_SET]
+ROCK_MATERIAL_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in ROCK_MATERIAL_SET]
+
+sorted_tp_keywords = sorted(TIME_PERIOD_KEYWORDS.keys(), key=len, reverse=True)
+TIME_PERIOD_RE_LIST = [(TIME_PERIOD_KEYWORDS[kw], re.compile(r'\b' + re.escape(normalize_text(kw)) + r'\b')) for kw in sorted_tp_keywords]
+
+sorted_artifacts = sorted(ARTIFACT_DB.keys(), key=len, reverse=True)
+ARTIFACT_RE_LIST = [(ARTIFACT_DB[art], re.compile(r'\b' + re.escape(normalize_text(art)) + r'\b')) for art in sorted_artifacts]
+
+def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
     unigrams = Counter()
     bigrams = Counter()
     trigrams = Counter()
@@ -496,6 +519,7 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
                 
                 is_prehistoric = len(prehist_evidence) > 0
                 
+                time_period = determine_time_period(corrected_text, ARTIFACT_DB, is_prehistoric)
                 time_period = determine_time_period(corrected_text, artifact_db, is_prehistoric, TIME_PERIOD_RE_LIST, ARTIFACT_RE_LIST)
                 time_period = classifier.determine_time_period(corrected_text, is_prehistoric)
                 
