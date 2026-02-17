@@ -15,6 +15,7 @@ except ImportError:
 # Increase CSV field size limit for Windows/Large fields
 csv_utils.increase_field_size_limit()
 
+DEFAULT_INPUT_FILE = r'J:/Physical Share Copy/Stephanie/Southgate Output/p4_points_classify.csv'
 DEFAULT_INPUT_FILE = os.environ.get('BURNED_ROCK_INPUT_FILE', 'classified_sites.csv')
 REPORT_DIR = 'Burned_Rock_Report'
 
