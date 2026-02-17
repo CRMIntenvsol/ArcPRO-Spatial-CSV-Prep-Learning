@@ -2,6 +2,7 @@ import csv
 import sys
 import os
 from collections import Counter
+import csv_utils
 
 # Try to import plotting libraries (standard in ArcPro/Anaconda)
 try:
@@ -12,24 +13,15 @@ except ImportError:
     print("Warning: matplotlib not found. Charts will not be generated.")
 
 # Increase CSV field size limit for Windows/Large fields
-max_int = sys.maxsize
-while True:
-    try:
-        csv.field_size_limit(max_int)
-        break
-    except OverflowError:
-        max_int = int(max_int/10)
+csv_utils.increase_field_size_limit()
 
-DEFAULT_INPUT_FILE = OUTPUT_FILE = r'J:/Physical Share Copy/Stephanie/Southgate Output/p4_points_classify.csv'
+DEFAULT_INPUT_FILE = r'J:/Physical Share Copy/Stephanie/Southgate Output/p4_points_classify.csv'
+DEFAULT_INPUT_FILE = os.environ.get('BURNED_ROCK_INPUT_FILE', 'classified_sites.csv')
 REPORT_DIR = 'Burned_Rock_Report'
 
 def ensure_dir(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
-
-def clean_value(val):
-    if not val: return ""
-    return val.lower().strip()
 
 def analyze_data(input_file):
     print(f"Reading data from {input_file}...")
