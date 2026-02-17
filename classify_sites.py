@@ -4,9 +4,13 @@ import re
 import json
 import os
 import difflib
+import argparse
+import functools
 from collections import Counter
+import csv_utils_helpers
 
 # Increase CSV field size limit
+csv_utils_helpers.increase_csv_field_size_limit()
 max_int = sys.maxsize
 while True:
     try:
@@ -14,6 +18,10 @@ while True:
         break
     except OverflowError:
         max_int = int(max_int/10)
+import csv_utils
+
+# Increase CSV field size limit
+csv_utils.increase_field_size_limit()
 
 INPUT_FILE = 'p3_points_concatenated.csv'
 OUTPUT_FILE = 'p3_points_classified.csv'
@@ -70,6 +78,18 @@ EXCLUSION_TERMS = {
     "hearth": ["fireplace", "chimney"]
 }
 
+EXCLUSION_REGEXES = {
+    base_kw: re.compile(r'\b(?:' + '|'.join(re.escape(term) for term in terms) + r')\b')
+    for base_kw, terms in EXCLUSION_TERMS.items() if terms
+}
+EXCLUSION_REGEXES = {}
+for base_kw, exclusion_list in EXCLUSION_TERMS.items():
+    if not exclusion_list:
+        continue
+    # Pre-compile exclusion patterns. Using a non-capturing group (?:...) for efficiency.
+    pattern = r'\b(?:' + '|'.join(re.escape(term) for term in exclusion_list) + r')\b'
+    EXCLUSION_REGEXES[base_kw] = re.compile(pattern)
+
 NEGATION_TERMS = ["no", "not", "non", "lack", "absence", "negative"]
 
 TIME_PERIOD_KEYWORDS = {
@@ -93,6 +113,8 @@ TIME_PERIOD_KEYWORDS = {
     "archaic": "Archaic"
 }
 
+STOPWORDS = set(['the', 'and', 'of', 'in', 'a', 'to', 'with', 'is', 'was', 'for', 'on', 'at', 'from', 'by', 'an', 'or', 'as', 'no', 'data', 'site', 'sites', 'area', 'areas', 'cm', 'm', 'ft', 'project', 'survey', 'texas', 'county', 'recorded', 'found'])
+
 # --- 2. Helper Functions ---
 
 def load_artifact_db():
@@ -100,7 +122,7 @@ def load_artifact_db():
         try:
             with open(ARTIFACT_DB_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except Exception as e:
+        except (json.JSONDecodeError, OSError) as e:
             print(f"Warning: Could not load artifact DB: {e}")
             return {}
     return {}
@@ -124,6 +146,13 @@ CLASS_3_SET = generate_variations(CLASS_3_KEYWORDS)
 BURNED_CLAY_SET = generate_variations(BURNED_CLAY_KEYWORDS)
 ROCK_MATERIAL_SET = generate_variations(ROCK_MATERIAL_KEYWORDS)
 
+BURNED_CLAY_RE = None
+CLASS_1_RE_LIST = []
+CLASS_2_RE_LIST = []
+CLASS_3_RE_LIST = []
+ROCK_MATERIAL_RE_LIST = []
+TIME_PERIOD_RE_LIST = []
+ARTIFACT_RE_LIST = []
 def clean_value(val):
     if val is None: return ""
     return str(val).replace('\r', ' ').replace('\n', ' ').replace('"', "'").strip()
@@ -134,6 +163,11 @@ def normalize_text(text):
     text = re.sub(r'[^a-z0-9\s]', ' ', text)
     text = re.sub(r'\s+', ' ', text).strip()
     return text
+
+@functools.lru_cache(maxsize=32768)
+def _get_correction_cached(word):
+    matches = difflib.get_close_matches(word, TYPO_TARGETS, n=1, cutoff=0.85)
+    return matches[0] if matches else word
 
 def correct_typos(text):
     words = text.split()
@@ -146,11 +180,8 @@ def correct_typos(text):
         if word in TYPO_TARGETS:
             corrected_words.append(word)
             continue
-        matches = difflib.get_close_matches(word, TYPO_TARGETS, n=1, cutoff=0.85)
-        if matches:
-            corrected_words.append(matches[0])
-        else:
-            corrected_words.append(word)
+
+        corrected_words.append(_get_correction_cached(word))
             
     return " ".join(corrected_words)
 
@@ -163,110 +194,279 @@ def is_negated(text_before, window=5):
     return False
 
 def is_excluded_context(text_around, keyword):
-    for base_kw, exclusion_list in EXCLUSION_TERMS.items():
-        if base_kw in keyword: 
-            for term in exclusion_list:
-                if re.search(r'\b' + re.escape(term) + r'\b', text_around):
-                    return True
+    for base_kw, regex in EXCLUSION_REGEXES.items():
+        if base_kw in keyword:
+            if regex.search(text_around):
+                return True
     return False
-
-def find_classes_robust(normalized_text):
-    """
-    Robust classification handling negation, context exclusion, and dependencies.
-    Runs on pre-corrected text.
-    """
-    c1_found = set()
-    c2_found = set()
-    c3_found = set()
-    
-    # Check Rock Presence with Negation Check
-    rock_present = False
-    for rk in ROCK_MATERIAL_SET:
-        pattern = r'\b' + re.escape(rk) + r'\b'
-        for match in re.finditer(pattern, normalized_text):
-            start = match.start()
-            # Check negation for this rock match
-            text_before = normalized_text[max(0, start-30):start]
-            if not is_negated(text_before):
-                rock_present = True
-                break # Found at least one non-negated rock term
-        if rock_present: break
-            
-    def process_set(keyword_set, target_set, class_id):
-        for kw in keyword_set:
-            pattern = r'\b' + re.escape(kw) + r'\b'
-            for match in re.finditer(pattern, normalized_text):
-                start, end = match.span()
-                
-                # 1. Negation Check
-                text_before = normalized_text[max(0, start-30):start]
-                if is_negated(text_before):
-                    continue 
-                
-                # 2. Context Exclusion
-                text_around = normalized_text[max(0, start-50):min(len(normalized_text), end+50)]
-                if is_excluded_context(text_around, kw):
-                    continue
-                    
-                # 3. Dependency Check (Specific to Class 2 'hearth')
-                if class_id == 2:
-                    if (kw == "hearth" or kw == "hearths") and not rock_present:
-                         continue
-
-                target_set.add(kw)
-
-    process_set(CLASS_1_SET, c1_found, 1)
-    process_set(CLASS_2_SET, c2_found, 2)
-    process_set(CLASS_3_SET, c3_found, 3)
-                 
-    return c1_found, c2_found, c3_found
-
-def determine_time_period(normalized_text, artifact_db, is_prehistoric):
-    found_periods = set()
-    
-    sorted_tp_keywords = sorted(TIME_PERIOD_KEYWORDS.keys(), key=len, reverse=True)
-    for kw in sorted_tp_keywords:
-        norm_kw = normalize_text(kw)
-        if re.search(r'\b' + re.escape(norm_kw) + r'\b', normalized_text):
-            found_periods.add(TIME_PERIOD_KEYWORDS[kw])
-    
-    sorted_artifacts = sorted(artifact_db.keys(), key=len, reverse=True)
-    for artifact in sorted_artifacts:
-        norm_art = normalize_text(artifact)
-        if re.search(r'\b' + re.escape(norm_art) + r'\b', normalized_text):
-            found_periods.add(artifact_db[artifact])
-    
-    if found_periods:
-        return "; ".join(sorted(list(found_periods)))
-
-    if is_prehistoric:
-        return "Inferred: Prehistoric"
-    
-    if "historic" in normalized_text:
-        return "Inferred: Historic"
-        
-    return "Unknown"
 
 def get_ngrams(text, n):
     words = text.split()
     if len(words) < n: return []
     return [' '.join(words[i:i+n]) for i in range(len(words)-n+1)]
 
-def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
-    print("Preparing word banks and artifact DB...")
-    artifact_db = load_artifact_db()
+class SiteClassifier:
+    def __init__(self, artifact_db=None):
+        if artifact_db is None:
+            self.artifact_db = load_artifact_db()
+        else:
+            self.artifact_db = artifact_db
+
+        # Normalize sets and compile regexes
+        self.class_1_re_list = self._compile_regex_list(CLASS_1_SET)
+        self.class_2_re_list = self._compile_regex_list(CLASS_2_SET)
+        self.class_3_re_list = self._compile_regex_list(CLASS_3_SET)
+        self.rock_material_re_list = self._compile_regex_list(ROCK_MATERIAL_SET)
+
+        normalized_burned_clay = {normalize_text(k) for k in BURNED_CLAY_SET}
+        self.burned_clay_re = re.compile(r'\b(?:' + '|'.join(re.escape(kw) for kw in normalized_burned_clay) + r')\b')
+
+        sorted_tp_keywords = sorted(TIME_PERIOD_KEYWORDS.keys(), key=len, reverse=True)
+        self.time_period_re_list = [(TIME_PERIOD_KEYWORDS[kw], re.compile(r'\b' + re.escape(normalize_text(kw)) + r'\b')) for kw in sorted_tp_keywords]
+
+        sorted_artifacts = sorted(self.artifact_db.keys(), key=len, reverse=True)
+        self.artifact_re_list = [(self.artifact_db[art], re.compile(r'\b' + re.escape(normalize_text(art)) + r'\b')) for art in sorted_artifacts]
+
+    def _compile_regex_list(self, keyword_set):
+        normalized = {normalize_text(k) for k in keyword_set}
+        return [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in normalized]
+
+    def find_classes_robust(self, normalized_text):
+        """
+        Robust classification handling negation, context exclusion, and dependencies.
+        Runs on pre-corrected text.
+        """
+        c1_found = set()
+        c2_found = set()
+        c3_found = set()
+
+        # Check Rock Presence with Negation Check
+        rock_present = False
+        for kw, regex in self.rock_material_re_list:
+            for match in regex.finditer(normalized_text):
+                start = match.start()
+                # Check negation for this rock match
+                text_before = normalized_text[max(0, start-30):start]
+                if not is_negated(text_before):
+                    rock_present = True
+                    break # Found at least one non-negated rock term
+            if rock_present: break
+                
+        def process_set(regex_list, target_set, class_id):
+            for kw, regex in regex_list:
+                for match in regex.finditer(normalized_text):
+                    start, end = match.span()
+                    
+                    # 1. Negation Check
+                    text_before = normalized_text[max(0, start-30):start]
+                    if is_negated(text_before):
+                        continue
+
+                    # 2. Context Exclusion
+                    text_around = normalized_text[max(0, start-50):min(len(normalized_text), end+50)]
+                    if is_excluded_context(text_around, kw):
+                        continue
+
+                    # 3. Dependency Check (Specific to Class 2 'hearth')
+                    if class_id == 2:
+                        if (kw == "hearth" or kw == "hearths") and not rock_present:
+                             continue
+
+def determine_time_period(normalized_text, artifact_db, is_prehistoric, time_period_re_list=None, artifact_re_list=None):
+    if time_period_re_list is None:
+        time_period_re_list = TIME_PERIOD_RE_LIST
+    if artifact_re_list is None:
+        artifact_re_list = ARTIFACT_RE_LIST
+
+    found_periods = set()
     
+    for period_name, regex in time_period_re_list:
+        if regex.search(normalized_text):
+            found_periods.add(period_name)
+    
+    for period_name, regex in artifact_re_list:
+        if regex.search(normalized_text):
+            found_periods.add(period_name)
+    
+    if found_periods:
+        return "; ".join(sorted(list(found_periods)))
+                    target_set.add(kw)
+
+        process_set(self.class_1_re_list, c1_found, 1)
+        process_set(self.class_2_re_list, c2_found, 2)
+        process_set(self.class_3_re_list, c3_found, 3)
+
+        return c1_found, c2_found, c3_found
+
+    def determine_time_period(self, normalized_text, is_prehistoric):
+        found_periods = set()
+
+        for period_name, regex in self.time_period_re_list:
+            if regex.search(normalized_text):
+                found_periods.add(period_name)
+        
+        for period_name, regex in self.artifact_re_list:
+            if regex.search(normalized_text):
+                found_periods.add(period_name)
+
+        if found_periods:
+            return "; ".join(sorted(list(found_periods)))
+
+# --- Module Level Initialization ---
+
+print("Preparing word banks and artifact DB...")
+ARTIFACT_DB = load_artifact_db()
+
+CLASS_1_SET = {normalize_text(k) for k in CLASS_1_SET}
+CLASS_2_SET = {normalize_text(k) for k in CLASS_2_SET}
+CLASS_3_SET = {normalize_text(k) for k in CLASS_3_SET}
+BURNED_CLAY_SET = {normalize_text(k) for k in BURNED_CLAY_SET}
+BURNED_CLAY_RE = re.compile(r'\b(?:' + '|'.join(re.escape(kw) for kw in BURNED_CLAY_SET) + r')\b')
+ROCK_MATERIAL_SET = {normalize_text(k) for k in ROCK_MATERIAL_SET}
+        if is_prehistoric:
+            return "Inferred: Prehistoric"
+
+        if "historic" in normalized_text:
+            return "Inferred: Historic"
+
+        return "Unknown"
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Classify site data.')
+    parser.add_argument('--input', '-i', default='p3_points_concatenated.csv', help='Input CSV file path')
+    parser.add_argument('--output', '-o', default='p3_points_classified.csv', help='Output CSV file path')
+    parser.add_argument('--generate-synonyms', action='store_true', help='Generate synonyms file analysis')
+    return parser.parse_args()
+
+def main():
+    args = parse_arguments()
+    input_file = args.input
+    output_file = args.output
+
+    if not os.path.exists(input_file):
+        print(f"Error: Input file '{input_file}' not found.")
+        sys.exit(1)
+
+def setup_globals(artifact_db):
     global CLASS_1_SET, CLASS_2_SET, CLASS_3_SET, BURNED_CLAY_SET, ROCK_MATERIAL_SET
+    global BURNED_CLAY_RE, CLASS_1_RE_LIST, CLASS_2_RE_LIST, CLASS_3_RE_LIST, ROCK_MATERIAL_RE_LIST
+    global TIME_PERIOD_RE_LIST, ARTIFACT_RE_LIST
+
     CLASS_1_SET = {normalize_text(k) for k in CLASS_1_SET}
     CLASS_2_SET = {normalize_text(k) for k in CLASS_2_SET}
     CLASS_3_SET = {normalize_text(k) for k in CLASS_3_SET}
     BURNED_CLAY_SET = {normalize_text(k) for k in BURNED_CLAY_SET}
+
+    BURNED_CLAY_RE = re.compile(r'\b(?:' + '|'.join(re.escape(kw) for kw in BURNED_CLAY_SET) + r')\b')
     ROCK_MATERIAL_SET = {normalize_text(k) for k in ROCK_MATERIAL_SET}
 
+    CLASS_1_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_1_SET]
+    CLASS_2_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_2_SET]
+    CLASS_3_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_3_SET]
+    ROCK_MATERIAL_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in ROCK_MATERIAL_SET]
+
+    sorted_tp_keywords = sorted(TIME_PERIOD_KEYWORDS.keys(), key=len, reverse=True)
+    TIME_PERIOD_RE_LIST = [(TIME_PERIOD_KEYWORDS[kw], re.compile(r'\b' + re.escape(normalize_text(kw)) + r'\b')) for kw in sorted_tp_keywords]
+
+    sorted_artifacts = sorted(artifact_db.keys(), key=len, reverse=True)
+    ARTIFACT_RE_LIST = [(artifact_db[art], re.compile(r'\b' + re.escape(normalize_text(art)) + r'\b')) for art in sorted_artifacts]
+    print("Preparing word banks and artifact DB...")
+    
+    classifier = SiteClassifier()
+
+def process_single_row(row, artifact_db):
+    clean_row = {k: clean_value(v) for k, v in row.items()}
+    original_text = clean_row.get('Concat_site_variables', '')
+    normalized_text = normalize_text(original_text)
+
+    corrected_text = correct_typos(normalized_text)
+    c1_kws, c2_kws, c3_kws = find_classes_robust(corrected_text)
+
+    c1 = len(c1_kws) > 0
+    c2 = len(c2_kws) > 0
+    c3 = len(c3_kws) > 0
+
+    burned_clay_found = bool(BURNED_CLAY_RE.search(corrected_text))
+
+    burned_clay_only = False
+    if burned_clay_found and not c1 and not c2 and not c3:
+        burned_clay_only = True
+
+    prehist_evidence = []
+    for kw in PREHISTORIC_KEYWORDS:
+        if kw in corrected_text:
+            prehist_evidence.append(kw)
+
+    is_prehistoric = len(prehist_evidence) > 0
+
+    time_period = determine_time_period(corrected_text, artifact_db, is_prehistoric)
+
+    clean_row['Normalized_Text'] = corrected_text
+    clean_row['Class_1_Found'] = c1
+    clean_row['Class_1_Keywords'] = "; ".join(c1_kws)
+    clean_row['Class_2_Found'] = c2
+    clean_row['Class_2_Keywords'] = "; ".join(c2_kws)
+    clean_row['Class_3_Found'] = c3
+    clean_row['Class_3_Keywords'] = "; ".join(c3_kws)
+    clean_row['Burned_Clay_Found'] = burned_clay_found
+    clean_row['Burned_Clay_Only'] = burned_clay_only
+    clean_row['Is_Prehistoric'] = is_prehistoric
+    clean_row['Learned_Time_Period'] = time_period
+    clean_row['Prehistoric_Evidence'] = "; ".join(prehist_evidence)
+
+    return clean_row, corrected_text
+
+def analyze_frequencies(unigrams, bigrams, trigrams):
+    print("Analyzing frequencies for potential synonyms...")
+    with open(SYNONYMS_FILE, 'w', encoding='utf-8') as f_syn:
+        f_syn.write("Potential Synonyms / High Frequency Terms Analysis\n")
+        f_syn.write("================================================\n\n")
+        f_syn.write("Top 50 Unigrams (excluding common stopwords):\n")
+        for word, count in unigrams.most_common(50):
+            f_syn.write(f"{word}: {count}\n")
+        f_syn.write("\n")
+
+        f_syn.write("Top 50 Bigrams (2-word phrases):\n")
+        interesting_terms = ['rock', 'stone', 'fire', 'thermal', 'burned', 'burnt', 'heat', 'ash', 'charcoal', 'hearth', 'midden', 'oven', 'pit', 'scatter']
+        count_shown = 0
+        for phrase, count in bigrams.most_common(1000):
+            if count_shown >= 50: break
+            if any(term in phrase for term in interesting_terms):
+                    f_syn.write(f"{phrase}: {count}\n")
+                    count_shown += 1
+        f_syn.write("\n")
+
+        f_syn.write("Top 50 Trigrams (3-word phrases):\n")
+        count_shown = 0
+        for phrase, count in trigrams.most_common(1000):
+            if count_shown >= 50: break
+            if any(term in phrase for term in interesting_terms):
+                    f_syn.write(f"{phrase}: {count}\n")
+                    count_shown += 1
+
+    print(f"Frequency analysis written to {SYNONYMS_FILE}")
+
+def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
+    print("Preparing word banks and artifact DB...")
+    artifact_db = load_artifact_db()
+
+    setup_globals(artifact_db)
+
+CLASS_1_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_1_SET]
+CLASS_2_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_2_SET]
+CLASS_3_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_3_SET]
+ROCK_MATERIAL_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in ROCK_MATERIAL_SET]
+
+sorted_tp_keywords = sorted(TIME_PERIOD_KEYWORDS.keys(), key=len, reverse=True)
+TIME_PERIOD_RE_LIST = [(TIME_PERIOD_KEYWORDS[kw], re.compile(r'\b' + re.escape(normalize_text(kw)) + r'\b')) for kw in sorted_tp_keywords]
+
+sorted_artifacts = sorted(ARTIFACT_DB.keys(), key=len, reverse=True)
+ARTIFACT_RE_LIST = [(ARTIFACT_DB[art], re.compile(r'\b' + re.escape(normalize_text(art)) + r'\b')) for art in sorted_artifacts]
+
+def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
     unigrams = Counter()
     bigrams = Counter()
     trigrams = Counter()
-    STOPWORDS = set(['the', 'and', 'of', 'in', 'a', 'to', 'with', 'is', 'was', 'for', 'on', 'at', 'from', 'by', 'an', 'or', 'as', 'no', 'data', 'site', 'sites', 'area', 'areas', 'cm', 'm', 'ft', 'project', 'survey', 'texas', 'county', 'recorded', 'found'])
 
     print(f"Reading {input_file}...")
     
@@ -294,23 +494,19 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
             row_count = 0
             
             for row in reader:
-                clean_row = {k: clean_value(v) for k, v in row.items()}
+                clean_row, corrected_text = process_single_row(row, artifact_db)
+                clean_row = {k: csv_utils_helpers.clean_value(v) for k, v in row.items()}
                 original_text = clean_row.get('Concat_site_variables', '')
                 normalized_text = normalize_text(original_text)
                 
                 corrected_text = correct_typos(normalized_text)
-                c1_kws, c2_kws, c3_kws = find_classes_robust(corrected_text)
+                c1_kws, c2_kws, c3_kws = classifier.find_classes_robust(corrected_text)
                 
                 c1 = len(c1_kws) > 0
                 c2 = len(c2_kws) > 0
                 c3 = len(c3_kws) > 0
                 
-                burned_clay_found = False
-                for kw in BURNED_CLAY_SET:
-                    norm_kw = normalize_text(kw)
-                    if re.search(r'\b' + re.escape(norm_kw) + r'\b', corrected_text):
-                        burned_clay_found = True
-                        break
+                burned_clay_found = bool(classifier.burned_clay_re.search(corrected_text))
 
                 burned_clay_only = False
                 if burned_clay_found and not c1 and not c2 and not c3:
@@ -323,7 +519,9 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
                 
                 is_prehistoric = len(prehist_evidence) > 0
                 
-                time_period = determine_time_period(corrected_text, artifact_db, is_prehistoric)
+                time_period = determine_time_period(corrected_text, ARTIFACT_DB, is_prehistoric)
+                time_period = determine_time_period(corrected_text, artifact_db, is_prehistoric, TIME_PERIOD_RE_LIST, ARTIFACT_RE_LIST)
+                time_period = classifier.determine_time_period(corrected_text, is_prehistoric)
                 
                 clean_row['Normalized_Text'] = corrected_text
                 clean_row['Class_1_Found'] = c1
@@ -357,6 +555,11 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
     print(f"Finished processing {row_count} rows.")
     
     if output_file == OUTPUT_FILE: 
+        analyze_frequencies(unigrams, bigrams, trigrams)
+    # Logic to decide whether to generate synonyms
+    # If explicit flag is present OR if we are using the default output name (implying standard run)
+    is_default_output = (output_file == 'p3_points_classified.csv')
+    if args.generate_synonyms or is_default_output:
         print("Analyzing frequencies for potential synonyms...")
         with open(SYNONYMS_FILE, 'w', encoding='utf-8') as f_syn:
             f_syn.write("Potential Synonyms / High Frequency Terms Analysis\n")
@@ -398,3 +601,4 @@ if __name__ == "__main__":
         main('test_edge_cases.csv', 'test_results.csv')
     else:
         main(args.input, args.output)
+    main()
