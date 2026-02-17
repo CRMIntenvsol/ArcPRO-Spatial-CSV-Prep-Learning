@@ -93,6 +93,8 @@ TIME_PERIOD_KEYWORDS = {
     "archaic": "Archaic"
 }
 
+STOPWORDS = set(['the', 'and', 'of', 'in', 'a', 'to', 'with', 'is', 'was', 'for', 'on', 'at', 'from', 'by', 'an', 'or', 'as', 'no', 'data', 'site', 'sites', 'area', 'areas', 'cm', 'm', 'ft', 'project', 'survey', 'texas', 'county', 'recorded', 'found'])
+
 # --- 2. Helper Functions ---
 
 def load_artifact_db():
@@ -254,36 +256,111 @@ def get_ngrams(text, n):
     if len(words) < n: return []
     return [' '.join(words[i:i+n]) for i in range(len(words)-n+1)]
 
-def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
-    print("Preparing word banks and artifact DB...")
-    artifact_db = load_artifact_db()
-    
+def setup_globals(artifact_db):
     global CLASS_1_SET, CLASS_2_SET, CLASS_3_SET, BURNED_CLAY_SET, ROCK_MATERIAL_SET
+    global BURNED_CLAY_RE, CLASS_1_RE_LIST, CLASS_2_RE_LIST, CLASS_3_RE_LIST, ROCK_MATERIAL_RE_LIST
+    global TIME_PERIOD_RE_LIST, ARTIFACT_RE_LIST
+
     CLASS_1_SET = {normalize_text(k) for k in CLASS_1_SET}
     CLASS_2_SET = {normalize_text(k) for k in CLASS_2_SET}
     CLASS_3_SET = {normalize_text(k) for k in CLASS_3_SET}
     BURNED_CLAY_SET = {normalize_text(k) for k in BURNED_CLAY_SET}
-    global BURNED_CLAY_RE
+
     BURNED_CLAY_RE = re.compile(r'\b(?:' + '|'.join(re.escape(kw) for kw in BURNED_CLAY_SET) + r')\b')
     ROCK_MATERIAL_SET = {normalize_text(k) for k in ROCK_MATERIAL_SET}
 
-    global CLASS_1_RE_LIST, CLASS_2_RE_LIST, CLASS_3_RE_LIST, ROCK_MATERIAL_RE_LIST
     CLASS_1_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_1_SET]
     CLASS_2_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_2_SET]
     CLASS_3_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in CLASS_3_SET]
     ROCK_MATERIAL_RE_LIST = [(kw, re.compile(r'\b' + re.escape(kw) + r'\b')) for kw in ROCK_MATERIAL_SET]
 
-    global TIME_PERIOD_RE_LIST, ARTIFACT_RE_LIST
     sorted_tp_keywords = sorted(TIME_PERIOD_KEYWORDS.keys(), key=len, reverse=True)
     TIME_PERIOD_RE_LIST = [(TIME_PERIOD_KEYWORDS[kw], re.compile(r'\b' + re.escape(normalize_text(kw)) + r'\b')) for kw in sorted_tp_keywords]
 
     sorted_artifacts = sorted(artifact_db.keys(), key=len, reverse=True)
     ARTIFACT_RE_LIST = [(artifact_db[art], re.compile(r'\b' + re.escape(normalize_text(art)) + r'\b')) for art in sorted_artifacts]
 
+def process_single_row(row, artifact_db):
+    clean_row = {k: clean_value(v) for k, v in row.items()}
+    original_text = clean_row.get('Concat_site_variables', '')
+    normalized_text = normalize_text(original_text)
+
+    corrected_text = correct_typos(normalized_text)
+    c1_kws, c2_kws, c3_kws = find_classes_robust(corrected_text)
+
+    c1 = len(c1_kws) > 0
+    c2 = len(c2_kws) > 0
+    c3 = len(c3_kws) > 0
+
+    burned_clay_found = bool(BURNED_CLAY_RE.search(corrected_text))
+
+    burned_clay_only = False
+    if burned_clay_found and not c1 and not c2 and not c3:
+        burned_clay_only = True
+
+    prehist_evidence = []
+    for kw in PREHISTORIC_KEYWORDS:
+        if kw in corrected_text:
+            prehist_evidence.append(kw)
+
+    is_prehistoric = len(prehist_evidence) > 0
+
+    time_period = determine_time_period(corrected_text, artifact_db, is_prehistoric)
+
+    clean_row['Normalized_Text'] = corrected_text
+    clean_row['Class_1_Found'] = c1
+    clean_row['Class_1_Keywords'] = "; ".join(c1_kws)
+    clean_row['Class_2_Found'] = c2
+    clean_row['Class_2_Keywords'] = "; ".join(c2_kws)
+    clean_row['Class_3_Found'] = c3
+    clean_row['Class_3_Keywords'] = "; ".join(c3_kws)
+    clean_row['Burned_Clay_Found'] = burned_clay_found
+    clean_row['Burned_Clay_Only'] = burned_clay_only
+    clean_row['Is_Prehistoric'] = is_prehistoric
+    clean_row['Learned_Time_Period'] = time_period
+    clean_row['Prehistoric_Evidence'] = "; ".join(prehist_evidence)
+
+    return clean_row, corrected_text
+
+def analyze_frequencies(unigrams, bigrams, trigrams):
+    print("Analyzing frequencies for potential synonyms...")
+    with open(SYNONYMS_FILE, 'w', encoding='utf-8') as f_syn:
+        f_syn.write("Potential Synonyms / High Frequency Terms Analysis\n")
+        f_syn.write("================================================\n\n")
+        f_syn.write("Top 50 Unigrams (excluding common stopwords):\n")
+        for word, count in unigrams.most_common(50):
+            f_syn.write(f"{word}: {count}\n")
+        f_syn.write("\n")
+
+        f_syn.write("Top 50 Bigrams (2-word phrases):\n")
+        interesting_terms = ['rock', 'stone', 'fire', 'thermal', 'burned', 'burnt', 'heat', 'ash', 'charcoal', 'hearth', 'midden', 'oven', 'pit', 'scatter']
+        count_shown = 0
+        for phrase, count in bigrams.most_common(1000):
+            if count_shown >= 50: break
+            if any(term in phrase for term in interesting_terms):
+                    f_syn.write(f"{phrase}: {count}\n")
+                    count_shown += 1
+        f_syn.write("\n")
+
+        f_syn.write("Top 50 Trigrams (3-word phrases):\n")
+        count_shown = 0
+        for phrase, count in trigrams.most_common(1000):
+            if count_shown >= 50: break
+            if any(term in phrase for term in interesting_terms):
+                    f_syn.write(f"{phrase}: {count}\n")
+                    count_shown += 1
+
+    print(f"Frequency analysis written to {SYNONYMS_FILE}")
+
+def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
+    print("Preparing word banks and artifact DB...")
+    artifact_db = load_artifact_db()
+
+    setup_globals(artifact_db)
+
     unigrams = Counter()
     bigrams = Counter()
     trigrams = Counter()
-    STOPWORDS = set(['the', 'and', 'of', 'in', 'a', 'to', 'with', 'is', 'was', 'for', 'on', 'at', 'from', 'by', 'an', 'or', 'as', 'no', 'data', 'site', 'sites', 'area', 'areas', 'cm', 'm', 'ft', 'project', 'survey', 'texas', 'county', 'recorded', 'found'])
 
     print(f"Reading {input_file}...")
     
@@ -311,45 +388,7 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
             row_count = 0
             
             for row in reader:
-                clean_row = {k: clean_value(v) for k, v in row.items()}
-                original_text = clean_row.get('Concat_site_variables', '')
-                normalized_text = normalize_text(original_text)
-                
-                corrected_text = correct_typos(normalized_text)
-                c1_kws, c2_kws, c3_kws = find_classes_robust(corrected_text)
-                
-                c1 = len(c1_kws) > 0
-                c2 = len(c2_kws) > 0
-                c3 = len(c3_kws) > 0
-                
-                burned_clay_found = bool(BURNED_CLAY_RE.search(corrected_text))
-
-                burned_clay_only = False
-                if burned_clay_found and not c1 and not c2 and not c3:
-                    burned_clay_only = True
-
-                prehist_evidence = []
-                for kw in PREHISTORIC_KEYWORDS:
-                    if kw in corrected_text:
-                        prehist_evidence.append(kw)
-                
-                is_prehistoric = len(prehist_evidence) > 0
-                
-                time_period = determine_time_period(corrected_text, artifact_db, is_prehistoric)
-                
-                clean_row['Normalized_Text'] = corrected_text
-                clean_row['Class_1_Found'] = c1
-                clean_row['Class_1_Keywords'] = "; ".join(c1_kws)
-                clean_row['Class_2_Found'] = c2
-                clean_row['Class_2_Keywords'] = "; ".join(c2_kws)
-                clean_row['Class_3_Found'] = c3
-                clean_row['Class_3_Keywords'] = "; ".join(c3_kws)
-                clean_row['Burned_Clay_Found'] = burned_clay_found
-                clean_row['Burned_Clay_Only'] = burned_clay_only
-                clean_row['Is_Prehistoric'] = is_prehistoric
-                clean_row['Learned_Time_Period'] = time_period
-                clean_row['Prehistoric_Evidence'] = "; ".join(prehist_evidence)
-                
+                clean_row, corrected_text = process_single_row(row, artifact_db)
                 writer.writerow(clean_row)
                 
                 words = corrected_text.split()
@@ -369,34 +408,7 @@ def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
     print(f"Finished processing {row_count} rows.")
     
     if output_file == OUTPUT_FILE: 
-        print("Analyzing frequencies for potential synonyms...")
-        with open(SYNONYMS_FILE, 'w', encoding='utf-8') as f_syn:
-            f_syn.write("Potential Synonyms / High Frequency Terms Analysis\n")
-            f_syn.write("================================================\n\n")
-            f_syn.write("Top 50 Unigrams (excluding common stopwords):\n")
-            for word, count in unigrams.most_common(50):
-                f_syn.write(f"{word}: {count}\n")
-            f_syn.write("\n")
-            
-            f_syn.write("Top 50 Bigrams (2-word phrases):\n")
-            interesting_terms = ['rock', 'stone', 'fire', 'thermal', 'burned', 'burnt', 'heat', 'ash', 'charcoal', 'hearth', 'midden', 'oven', 'pit', 'scatter']
-            count_shown = 0
-            for phrase, count in bigrams.most_common(1000):
-                if count_shown >= 50: break
-                if any(term in phrase for term in interesting_terms):
-                     f_syn.write(f"{phrase}: {count}\n")
-                     count_shown += 1
-            f_syn.write("\n")
-            
-            f_syn.write("Top 50 Trigrams (3-word phrases):\n")
-            count_shown = 0
-            for phrase, count in trigrams.most_common(1000):
-                if count_shown >= 50: break
-                if any(term in phrase for term in interesting_terms):
-                     f_syn.write(f"{phrase}: {count}\n")
-                     count_shown += 1
-                     
-        print(f"Frequency analysis written to {SYNONYMS_FILE}")
+        analyze_frequencies(unigrams, bigrams, trigrams)
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == 'test':
