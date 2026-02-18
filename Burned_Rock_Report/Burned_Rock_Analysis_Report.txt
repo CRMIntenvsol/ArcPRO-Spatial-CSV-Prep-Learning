@@ -1,0 +1,65 @@
+BURNED ROCK ANALYSIS REPORT
+===========================
+
+1. DATASET OVERVIEW
+   - Total Sites Processed: 7827
+   - Sites with Prehistoric Evidence: 4642 (59.3%)
+
+2. BURNED ROCK CLASSIFICATION RESULTS
+   - Class 1 (Scatters): 1220 sites (15.6%)
+   - Class 2 (Hearths):  388 sites (5.0%)
+   - Class 3 (Ovens):    85 sites (1.1%)
+
+3. FEATURE ISOLATION (Sites containing ONLY one type)
+   - Pure Scatters (Class 1 only): 917
+   - Discrete Hearths (Class 2 only): 107
+   - Discrete Ovens (Class 3 only): 25
+     * Observation: 29.4% of Class 3 features appear without associated scatters or hearths description.
+
+4. TEMPORAL ANALYSIS (Top 25 Identified Groups)
+   --------------------------------------------
+   - Inferred: Prehistoric: 1957 (25.0%)
+   - Inferred: Historic: 1144 (14.6%)
+   - Unknown: 979 (12.5%)
+   - Historic - Modern (1901-present): 495 (6.3%)
+   - Prehistoric/Historic: 449 (5.7%)
+   - Archaic: 246 (3.1%)
+   - Archaic; Late Archaic: 149 (1.9%)
+   - Historic (post 1890s): 147 (1.9%)
+   - Historic (1890-present): 85 (1.1%)
+   - Late Archaic: 71 (0.9%)
+   - Historic (post 1890s); Historic - Modern (1901-present): 55 (0.7%)
+   - Historic (1890-present); Historic - Modern (1901-present): 55 (0.7%)
+   - Historic - Modern (1901-present); Prehistoric/Historic: 50 (0.6%)
+   - Late Prehistoric I (Austin Phase): 49 (0.6%)
+   - Archaic - Transitional/NeoAmerican: 46 (0.6%)
+   - Historic - Late Statehood (1865-1900); Historic - Modern (1901-present): 46 (0.6%)
+   - Archaic; Late Archaic (3500-1250 BP) / Woodland: 36 (0.5%)
+   - Undeter­ mined; possibly Early Archaic (Perino 1968): 35 (0.4%)
+   - Middle Archaic: 35 (0.4%)
+   - Historic (1880-1925): 33 (0.4%)
+   - Archaic; Prehistoric/Historic: 32 (0.4%)
+   - Historic (1890-present); Prehistoric/Historic: 31 (0.4%)
+   - Late Prehistoric: 30 (0.4%)
+   - Historic (1890-present); Historic (post 1890s): 30 (0.4%)
+   - Historic - Civil War: 25 (0.3%)
+
+5. CULTURAL OBSERVATIONS
+   - Prehistoric Class 3 Sites: 67
+   - Potential Historic/Unclassified Class 3 Sites: 18
+
+6. BURNED CLAY ANALYSIS
+   - Total Sites with Burned Clay: 160
+   - Burned Clay ONLY (No Burned Rock): 39
+   - Co-occurrence with Class 1 (Scatters): 88 (55.0%)
+   - Co-occurrence with Class 2 (Hearths): 111 (69.4%)
+   - Co-occurrence with Class 3 (Ovens): 14 (8.8%)
+   - Burned Clay in Prehistoric Context: 146 (91.2%)
+
+7. KEY FINDINGS & RECOMMENDATIONS
+   - PREVALENCE: Dispersed scatters (Class 1) are the most common manifestation of burned rock in this dataset.
+   - PREHISTORIC CONTEXT: A majority of Class 3 sites contain prehistoric evidence, supporting the classification of earth ovens.
+
+   - NEXT STEPS:
+     * Use ArcPro to plot 'Class 3' sites. Perform a Hot Spot Analysis to identify intensive processing zones.
+     * Filter the dataset using the 'Is_Prehistoric' column to create a clean prehistoric distribution map.

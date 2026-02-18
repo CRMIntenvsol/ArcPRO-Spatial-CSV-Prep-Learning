@@ -12,15 +12,18 @@ while True:
     except OverflowError:
         max_int = int(max_int/10)
 
-INPUT_FILE = 'p3_points_export_for_cleaning.csv'
-OUTPUT_FILE = 'p3_points_concatenated.csv'
+import argparse
+
+# Default filenames
+DEFAULT_INPUT_FILE = 'p3_points_export_for_cleaning.csv'
+DEFAULT_OUTPUT_FILE = 'p3_points_concatenated.csv'
 
 COLUMNS_TO_CONCAT = [
-    'type_site', 'explain', 'additional', 'surf_tech', 'map_meth', 'test_meth',
-    'exca_meth', 'records', 'materials', 'samples', 'time_occ', 'drainage',
-    'soil_desc', 'surf_tex', 'visible', 'env_desc', 'time_desc', 'site_size',
-    'basis', 'cult_desc', 'basis_size', 'artifact', 'intact', 'value',
-    'invest', 'disc_desc', 'unmatched'
+    'type_site', 'sitename', 'explain', 'additional', 'observe', 'surface', 'surf_tech',
+    'map_meth', 'test_meth', 'exca_meth', 'records', 'materials', 'materials_collected',
+    'samples', 'time_occ', 'desc_loc', 'drainage', 'soil_desc', 'surf_tex', 'visible',
+    'env_desc', 'time_desc', 'site_size', 'basis', 'cult_desc', 'basis_size',
+    'artifact', 'intact', 'value', 'invest', 'disc_desc', 'unmatched'
 ]
 
 def clean_value(val):
@@ -34,13 +37,21 @@ def should_skip(val):
     return v in ['no data', 'false', '']
 
 def main():
-    print(f"Reading from {INPUT_FILE}...")
+    parser = argparse.ArgumentParser(description='Preprocess site data by concatenating columns.')
+    parser.add_argument('input_file', nargs='?', default=DEFAULT_INPUT_FILE, help='Input CSV file')
+    parser.add_argument('output_file', nargs='?', default=DEFAULT_OUTPUT_FILE, help='Output CSV file')
+    args = parser.parse_args()
 
-    if not os.path.exists(INPUT_FILE):
-        print(f"Error: Input file '{INPUT_FILE}' not found.")
+    input_file = args.input_file
+    output_file = args.output_file
+
+    print(f"Reading from {input_file}...")
+
+    if not os.path.exists(input_file):
+        print(f"Error: Input file '{input_file}' not found.")
         return
 
-    with open(INPUT_FILE, 'r', encoding='utf-8', errors='replace', newline='') as fin:
+    with open(input_file, 'r', encoding='utf-8', errors='replace', newline='') as fin:
         reader = csv.DictReader(fin)
         fieldnames = reader.fieldnames if reader.fieldnames else []
 
@@ -51,8 +62,8 @@ def main():
         base_fieldnames = [f for f in fieldnames if f != 'Concat_site_variables']
         new_fieldnames = base_fieldnames + ['Concat_site_variables']
 
-        print(f"Writing to {OUTPUT_FILE}...")
-        with open(OUTPUT_FILE, 'w', encoding='utf-8', newline='') as fout:
+        print(f"Writing to {output_file}...")
+        with open(output_file, 'w', encoding='utf-8', newline='') as fout:
             writer = csv.DictWriter(fout, fieldnames=new_fieldnames)
             writer.writeheader()
 

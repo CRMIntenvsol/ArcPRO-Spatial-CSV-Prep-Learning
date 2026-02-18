@@ -1,0 +1,87 @@
+Potential Synonyms / High Frequency Terms Analysis
+================================================
+
+Top 50 Unigrams (excluding common stopwords):
+desc: 32866
+surface: 16004
+shovel: 13322
+historic: 13237
+artifacts: 13194
+true: 12313
+were: 11230
+creek: 11156
+size: 11100
+false: 11089
+map: 10643
+time: 10421
+this: 10001
+artifact: 9574
+glass: 9410
+located: 9330
+soil: 8786
+road: 8753
+test: 8450
+that: 7908
+meth: 7489
+intact: 7485
+loc: 7394
+clay: 7149
+records: 7143
+basis: 7136
+are: 7070
+surf: 7008
+drainage: 6781
+materials: 6681
+tests: 6649
+type: 6619
+scatter: 6516
+prehistoric: 6290
+visible: 6274
+north: 6208
+one: 6048
+south: 5910
+west: 5905
+env: 5735
+east: 5660
+loam: 5643
+river: 5514
+two: 5303
+disc: 5259
+approximately: 5109
+metal: 4968
+unknown: 4953
+house: 4938
+percent: 4910
+
+Top 50 Bigrams (2-word phrases):
+lithic scatter: 1544
+artifact scatter: 1414
+scatter of: 1375
+burned rock: 1095
+surface scatter: 1025
+fire cracked: 613
+cracked rock: 563
+scatter explain: 389
+scatter and: 371
+of burned: 345
+scatter sitename: 329
+historic scatter: 322
+test pit: 315
+scatter additional: 276
+rock and: 267
+
+Top 50 Trigrams (3-word phrases):
+fire cracked rock: 553
+data lithic scatter: 520
+historic artifact scatter: 420
+scatter explain no: 384
+scatter of historic: 363
+scatter sitename no: 321
+surface scatter of: 296
+prehistoric lithic scatter: 242
+lithic scatter sitename: 221
+of burned rock: 217
+a scatter of: 180
+lithic scatter explain: 176
+lithic scatter additional: 162
+surface scatter and: 144

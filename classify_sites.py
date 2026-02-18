@@ -252,10 +252,66 @@ def determine_time_period(normalized_text, artifact_db, is_prehistoric):
 
     if artifact_db:
         sorted_artifacts = sorted(artifact_db.keys(), key=len, reverse=True)
+
+        # Artifacts that need strict context confirmation (must be followed by specific terms)
+        strict_context_artifacts = {
+            "trinity": ["point", "type", "arrow", "dart", "biface", "projectile"],
+            "dallas": ["point", "type", "arrow", "dart", "biface", "projectile"],
+            "ellis": ["point", "type", "arrow", "dart", "biface", "projectile"],
+            "bell": ["point", "type", "arrow", "dart", "biface", "projectile"],
+            "travis": ["point", "type", "arrow", "dart", "biface", "projectile"],
+            "uvalde": ["point", "type", "arrow", "dart", "biface", "projectile"],
+            "starr": ["point", "type", "arrow", "dart", "biface", "projectile"],
+            "young": ["point", "type", "arrow", "dart", "biface", "projectile"],
+            "castroville": ["point", "type", "arrow", "dart", "biface", "projectile"],
+            "marshall": ["point", "type", "arrow", "dart", "biface", "projectile"],
+            "cameron": ["point", "type", "arrow", "dart", "biface", "projectile"],
+            "wilson": ["point", "type", "arrow", "dart", "biface", "projectile"],
+            "wells": ["point", "type", "arrow", "dart", "biface", "projectile"],
+            "austin": ["phase", "focus", "interval"]
+        }
+
+        # Artifacts that are also common place names or modern terms (Exclusion list)
+        ambiguous_artifacts = {
+            "trinity": ["river", "creek", "county", "street", "road", "ave", "dr", "terrace", "formation", "group", "sands", "deposits", "valley"],
+            "dallas": ["county", "city", "street", "road", "ave", "dr", "fort", "ft"],
+            "austin phase": ["city", "college", "university"]
+        }
+
         for artifact in sorted_artifacts:
             norm_art = normalize_text(artifact)
-            if re.search(r'\b' + re.escape(norm_art) + r'\b', normalized_text):
-                found_periods.add(artifact_db[artifact])
+
+            # Use regex to find all matches and check context
+            pattern = r'\b' + re.escape(norm_art) + r'\b'
+            for match in re.finditer(pattern, normalized_text):
+                start, end = match.span()
+
+                # 1. Strict Context Check (Must have confirming word nearby)
+                if norm_art in strict_context_artifacts:
+                    suffix = normalized_text[end:].strip().split()
+                    lookahead = suffix[:5] # Check next 5 words
+                    confirmed = False
+                    for word in lookahead:
+                         if word in strict_context_artifacts[norm_art]:
+                             confirmed = True
+                             break
+                    if not confirmed:
+                        continue # Skip this match if strictly required context is missing
+
+                # 2. Ambiguity/Exclusion Check
+                is_ambiguous = False
+                if norm_art in ambiguous_artifacts:
+                    suffix = normalized_text[end:].strip().split()
+                    if suffix:
+                        next_word = suffix[0]
+                        if next_word in ambiguous_artifacts[norm_art]:
+                            is_ambiguous = True
+
+                if not is_ambiguous:
+                    found_periods.add(artifact_db[artifact])
+                    # Once we find a valid instance of this artifact, we can stop checking instances of THIS artifact
+                    # to save time, but we continue to other artifacts.
+                    break
 
     if found_periods:
         return "; ".join(sorted(list(found_periods)))

@@ -1,0 +1,52 @@
+# Burned Rock Analysis - Methodology Summary
+
+## 1. Data Preparation (`process_sites.py`)
+The raw CSV export from ArcPro/Database often contains text fields with formatting issues (embedded newlines, quotes) or Windows-specific limitations (integer overflow on field size). The processing step performs the following:
+- **Field Concatenation:** Combines relevant descriptive text fields (e.g., `Site_Description`, `Features`, `Artifacts`) into a single searchable text block (`Concat_site_variables`).
+- **Sanitization:** Removes hidden characters (carriage returns), replaces smart quotes with standard quotes, and ensures `utf-8` encoding.
+- **Handling Limits:** Automatically adjusts the CSV field size limit to handle extremely large text descriptions.
+
+## 2. Classification Logic (`classify_sites.py`)
+The core classification uses a **Keyword-Driven Approach** supplemented by **Robust Validation Rules** to ensure accuracy.
+
+### A. Feature Classification (Burned Rock & Clay)
+The script processes text through several stages:
+1.  **Normalization:** Lowercasing and punctuation removal.
+2.  **Typo Correction:** Automatically identifies and fixes common typos (e.g., "herth" -> "hearth", "bunred" -> "burned") using fuzzy matching against a target dictionary.
+3.  **Keyword Search with Validation:**
+    *   **Class 1 (Scatters):** "fire cracked rock", "burned rock", etc.
+    *   **Class 2 (Hearths):** "hearth", "burned rock concentration", etc.
+    *   **Class 3 (Ovens):** "earth oven", "burned rock midden", etc.
+    *   **Burned Clay:** "burned clay", "daub", "vitrified clay", "clay balls".
+
+**Validation Rules:**
+*   **Negation Detection:** Matches are ignored if preceded by "no", "not", "lack", or "absence" (e.g., "no oven features").
+*   **Context Exclusion:** Matches are ignored if exclusion terms appear nearby (e.g., "oven" is ignored if "stove", "enamel", or "microwave" are present).
+*   **Dependency Checks:** Specific terms like "hearth" only trigger a positive classification if associated **rock material** (e.g., "stone", "limestone", "fcr") is confirmed present and not negated. This prevents "oxidized clay hearths" (without rock) from being misclassified as Burned Rock features.
+
+**Output:**
+- Boolean flags (e.g., `Class_1_Found`).
+- Keyword lists (e.g., `Class_1_Keywords`) documenting *exactly* which terms triggered the classification.
+- "Burned Clay Only" flag for sites with burned clay but no burned rock.
+
+### B. Temporal Analysis (Time Period Inference)
+Time periods are determined using a hierarchical two-step process to ensure maximum specificity.
+
+1.  **Diagnostic Artifact Matching:**
+    - The text is cross-referenced against a dictionary of **817 diagnostic artifacts** (e.g., "Clovis", "Perdiz", "Pedernales").
+    - Each artifact is mapped to a specific time period based on the project schema (e.g., "Perdiz" -> "Late Prehistoric II (Toyah Phase)").
+
+2.  **Explicit Period Keywords:**
+    - The text is searched for explicit mentions of time periods (e.g., "Republic of Texas", "Civil War", "Austin Phase").
+
+3.  **Inference Fallback:**
+    - If no specific artifacts or period names are found, the script checks for general context keywords (e.g., "lithic", "flake") to assign "Inferred: Prehistoric" or "Inferred: Historic".
+
+**Hierarchy of Specificity:**
+The system prioritizes specific labels (e.g., "Paleoindian - Early") over general ones ("Paleoindian").
+
+## 3. Reporting (`generate_report.py`)
+The final step aggregates the site-level data to produce:
+- **Statistical Summary:** Counts and percentages for all classes and time periods.
+- **Co-occurrence Analysis:** How often Burned Clay appears with each rock class.
+- **Visualizations:** Bar charts for class distribution and time periods, and pie charts for prehistoric context.
