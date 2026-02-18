@@ -2,6 +2,7 @@
 import csv
 import sys
 import os
+import argparse
 
 # Increase CSV field size limit to handle large fields
 max_int = sys.maxsize
@@ -11,8 +12,6 @@ while True:
         break
     except OverflowError:
         max_int = int(max_int/10)
-
-import argparse
 
 # Default filenames
 DEFAULT_INPUT_FILE = 'p3_points_export_for_cleaning.csv'
