@@ -14,6 +14,7 @@ while True:
 
 INPUT_FILE = 'p3_points_export_for_cleaning.csv'
 OUTPUT_FILE = 'p3_points_concatenated.csv'
+DEFAULT_EXPERT_FILE = 'expert_classified.csv'
 
 COLUMNS_TO_CONCAT = [
     'type_site', 'sitename', 'explain', 'additional', 'observe', 'surface', 'surf_tech',
@@ -50,7 +51,7 @@ def load_expert_data(expert_file):
                         'citation': clean_value(row.get('citation'))
                     }
     except FileNotFoundError:
-        print(f"Warning: Expert file '{expert_file}' not found. Skipping expert data.")
+        print(f"Warning: Expert file '{expert_file}' not found. Skipping expert data integration.")
     except Exception as e:
         print(f"Error loading expert file: {e}")
 
@@ -60,12 +61,20 @@ def main():
     parser = argparse.ArgumentParser(description="Process site data and concatenate columns.")
     parser.add_argument('--input', '-i', default=INPUT_FILE, help='Input CSV file path')
     parser.add_argument('--output', '-o', default=OUTPUT_FILE, help='Output CSV file path')
-    parser.add_argument('--expert-file', '-e', help='Path to expert classified CSV file')
+    parser.add_argument('--expert-file', '-e', help='Path to expert classified CSV file. Defaults to expert_classified.csv if present.')
     args = parser.parse_args()
 
     input_file = args.input
     output_file = args.output
     expert_file = args.expert_file
+
+    # Automatic default logic for expert file
+    if not expert_file:
+        if os.path.exists(DEFAULT_EXPERT_FILE):
+            expert_file = DEFAULT_EXPERT_FILE
+            print(f"Found default expert file: {expert_file}")
+        else:
+            print(f"Note: No expert file specified and '{DEFAULT_EXPERT_FILE}' not found. Proceeding without expert classifications.")
 
     print(f"Reading from {input_file}...")
 
