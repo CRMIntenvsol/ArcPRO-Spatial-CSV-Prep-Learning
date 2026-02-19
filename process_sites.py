@@ -100,7 +100,7 @@ def main():
         return
 
     expert_data = load_expert_data(expert_file)
-    matches_found = 0
+    matched_expert_trinomials = set()
 
     with open(input_file, 'r', encoding='utf-8', errors='replace', newline='') as fin:
         reader = csv.DictReader(fin)
@@ -139,7 +139,7 @@ def main():
                 # Check for expert match
                 expert_info = expert_data.get(trinomial)
                 if expert_info:
-                    matches_found += 1
+                    matched_expert_trinomials.add(trinomial)
                     clean_row['refined_context'] = expert_info['refined_context']
                     clean_row['citation'] = expert_info['citation']
                 
@@ -169,9 +169,19 @@ def main():
                 print(f"Sample Input Trinomials: {', '.join(input_examples)}")
 
             print(f"Finished processing {row_count} rows.")
+
             if expert_data:
-                print(f"Total Expert Matches Found: {matches_found}")
-                if matches_found == 0:
+                print(f"Total Expert Matches Found: {len(matched_expert_trinomials)}")
+
+                missing_matches = set(expert_data.keys()) - matched_expert_trinomials
+                if missing_matches:
+                    print("\nMISSING MATCHES REPORT")
+                    print("======================")
+                    print(f"The following {len(missing_matches)} expert trinomials were NOT found in the input file:")
+                    for missing in sorted(list(missing_matches)):
+                        print(f" - {missing}")
+                    print("======================\n")
+                elif len(matched_expert_trinomials) == 0:
                     print("WARNING: Expert file loaded, but NO matches were found. Check your trinomial formats in both files.")
 
 if __name__ == "__main__":
