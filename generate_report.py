@@ -1,6 +1,7 @@
 import csv
 import sys
 import os
+import shutil
 from collections import Counter
 import csv_utils_helpers
 import csv_utils
@@ -17,12 +18,8 @@ except ImportError:
 csv_utils_helpers.increase_csv_field_size_limit()
 
 DEFAULT_INPUT_FILE = 'p3_points_classified.csv'
-csv_utils.increase_field_size_limit()
-
-DEFAULT_INPUT_FILE = 'p3_points_classified.csv'
-DEFAULT_INPUT_FILE = r'J:/Physical Share Copy/Stephanie/Southgate Output/p4_points_classify.csv'
-DEFAULT_INPUT_FILE = os.environ.get('BURNED_ROCK_INPUT_FILE', 'classified_sites.csv')
-REPORT_DIR = 'Burned_Rock_Report'
+REPORT_DIR = 'Analysis_Reports'
+SUBFOLDERS = ['Burned_Rock', 'Burned_Clay', 'Cultural_Typology', 'Soils']
 
 def ensure_dir(directory):
     if not os.path.exists(directory):
@@ -33,18 +30,31 @@ def analyze_data(input_file):
     
     stats = {
         'total': 0,
+        # Burned Rock
         'c1': 0, 'c2': 0, 'c3': 0,
         'c1_only': 0, 'c2_only': 0, 'c3_only': 0,
         'prehistoric': 0,
         'c3_prehistoric': 0,
         'c3_historic_only': 0,
+
+        # Burned Clay
         'burned_clay': 0,
-        'burned_clay_only': 0, # New Metric
+        'burned_clay_only': 0,
+        'bc_class_1': 0, # Keyword match
+        'bc_class_2': 0, # Artifact/feature match
         'bc_with_c1': 0,
         'bc_with_c2': 0,
         'bc_with_c3': 0,
         'bc_prehistoric': 0,
-        'time_periods': Counter()
+
+        # Cultural Typology
+        'caddo': 0,
+        'henrietta': 0,
+        'overlap': 0,
+
+        # Contexts
+        'time_periods': Counter(),
+        'soil_contexts': Counter()
     }
     
     try:
@@ -58,16 +68,33 @@ def analyze_data(input_file):
                 c1 = csv_utils_helpers.clean_value(row.get('Class_1_Found', 'False'), lower=True) == 'true'
                 c2 = csv_utils_helpers.clean_value(row.get('Class_2_Found', 'False'), lower=True) == 'true'
                 c3 = csv_utils_helpers.clean_value(row.get('Class_3_Found', 'False'), lower=True) == 'true'
+
                 bc = csv_utils_helpers.clean_value(row.get('Burned_Clay_Found', 'False'), lower=True) == 'true'
                 bc_only = csv_utils_helpers.clean_value(row.get('Burned_Clay_Only', 'False'), lower=True) == 'true'
+                bc1 = csv_utils_helpers.clean_value(row.get('Burned_Clay_Class_1_Found', 'False'), lower=True) == 'true'
+                bc2 = csv_utils_helpers.clean_value(row.get('Burned_Clay_Class_2_Found', 'False'), lower=True) == 'true'
+
+                caddo = csv_utils_helpers.clean_value(row.get('Caddo_Found', 'False'), lower=True) == 'true'
+                henrietta = csv_utils_helpers.clean_value(row.get('Henrietta_Found', 'False'), lower=True) == 'true'
+                overlap = csv_utils_helpers.clean_value(row.get('Henrietta_Caddo_Overlap_Found', 'False'), lower=True) == 'true'
                 
-                is_pre = csv_utils_helpers.clean_value(row.get('Is_Prehistoric', 'False'), lower=True) == 'true'
+                is_pre_str = csv_utils_helpers.clean_value(row.get('Is_Prehistoric', 'No Data'), lower=True)
+                is_pre = (is_pre_str == 'true')
                 
                 # Time Period
                 tp = csv_utils_helpers.clean_value(row.get('Learned_Time_Period', 'Unknown'))
                 if not tp: tp = 'Unknown'
                 stats['time_periods'][tp] += 1
 
+                # Soil Context
+                soil = csv_utils_helpers.clean_value(row.get('Soil_Inferred_Context', ''))
+                if soil:
+                    # Split multiple inferences
+                    inferences = [s.strip() for s in soil.split(';') if s.strip()]
+                    for inf in inferences:
+                        stats['soil_contexts'][inf] += 1
+
+                # Aggregates
                 if c1: stats['c1'] += 1
                 if c2: stats['c2'] += 1
                 if c3: stats['c3'] += 1
@@ -87,6 +114,9 @@ def analyze_data(input_file):
                         
                 if bc:
                     stats['burned_clay'] += 1
+                    if bc1: stats['bc_class_1'] += 1
+                    if bc2: stats['bc_class_2'] += 1
+
                     if c1: stats['bc_with_c1'] += 1
                     if c2: stats['bc_with_c2'] += 1
                     if c3: stats['bc_with_c3'] += 1
@@ -94,6 +124,10 @@ def analyze_data(input_file):
                 
                 if bc_only:
                     stats['burned_clay_only'] += 1
+
+                if caddo: stats['caddo'] += 1
+                if henrietta: stats['henrietta'] += 1
+                if overlap: stats['overlap'] += 1
                         
     except FileNotFoundError:
         print(f"Error: File {input_file} not found.")
@@ -107,7 +141,8 @@ def generate_charts(stats, output_dir):
 
     print("Generating charts...")
     
-    # 1. Class Distribution Bar Chart
+    # 1. Burned Rock Class Distribution (in Burned_Rock folder)
+    br_dir = os.path.join(output_dir, 'Burned_Rock')
     classes = ['Class 1\n(Scatter)', 'Class 2\n(Hearth)', 'Class 3\n(Oven)']
     counts = [stats['c1'], stats['c2'], stats['c3']]
     
@@ -115,186 +150,135 @@ def generate_charts(stats, output_dir):
     bars = plt.bar(classes, counts, color=['skyblue', '#ff9999', '#99ff99'])
     plt.title('Distribution of Burned Rock Features by Class')
     plt.ylabel('Number of Sites')
-    
-    # Add count labels
     for bar in bars:
         height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width()/2., height,
-                 f'{height}',
-                 ha='center', va='bottom')
-                 
-    plt.savefig(os.path.join(output_dir, 'class_distribution.png'))
+        plt.text(bar.get_x() + bar.get_width()/2., height, f'{height}', ha='center', va='bottom')
+    plt.savefig(os.path.join(br_dir, 'class_distribution.png'))
     plt.close()
     
-    # 2. Prehistoric vs Historic (for Class 3)
-    if stats['c3'] > 0:
-        labels = ['Prehistoric Evidence Found', 'No Prehistoric Evidence']
-        sizes = [stats['c3_prehistoric'], stats['c3_historic_only']]
-        colors = ['#ffcc99', '#d3d3d3']
-        
+    # 2. Cultural Typology (in Cultural_Typology folder)
+    ct_dir = os.path.join(output_dir, 'Cultural_Typology')
+    labels = ['Caddo (Eastern)', 'Henrietta (Western)', 'Overlap']
+    sizes = [stats['caddo'], stats['henrietta'], stats['overlap']]
+    # Filter out zeros for cleaner pie chart
+    labels_filtered = [l for l, s in zip(labels, sizes) if s > 0]
+    sizes_filtered = [s for s in sizes if s > 0]
+
+    if sizes_filtered:
         plt.figure(figsize=(8, 8))
-        plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
-        plt.title('Prehistoric Evidence in Class 3 (Oven) Sites')
+        plt.pie(sizes_filtered, labels=labels_filtered, autopct='%1.1f%%', startangle=140)
+        plt.title('Cultural Typology Distribution')
         plt.axis('equal')
-        plt.savefig(os.path.join(output_dir, 'class3_prehistoric_breakdown.png'))
+        plt.savefig(os.path.join(ct_dir, 'cultural_typology_pie.png'))
         plt.close()
 
-    # 3. Time Period Distribution (Top 10)
-    tp_counts = stats['time_periods']
-    most_common = tp_counts.most_common(15) # Increased to 15 to show detail
-    if most_common:
-        labels, values = zip(*most_common)
-        plt.figure(figsize=(12, 10))
-        y_pos = range(len(labels))
-        plt.barh(y_pos, values, align='center', color='teal')
-        plt.yticks(y_pos, labels)
-        plt.xlabel('Number of Sites')
-        plt.title('Top Identified Time Periods / Cultures')
-        plt.gca().invert_yaxis()
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, 'time_period_distribution.png'))
-        plt.close()
+    # 3. Burned Clay (in Burned_Clay folder)
+    bc_dir = os.path.join(output_dir, 'Burned_Clay')
+    labels = ['Class 1 (Material)', 'Class 2 (Features)']
+    values = [stats['bc_class_1'], stats['bc_class_2']]
 
+    plt.figure(figsize=(8, 6))
+    plt.bar(labels, values, color=['#e6b8a2', '#d4a373'])
+    plt.title('Burned Clay Classification')
+    plt.ylabel('Count')
+    plt.savefig(os.path.join(bc_dir, 'burned_clay_classes.png'))
+    plt.close()
 
 def write_text_report(stats, output_dir):
-    report_path = os.path.join(output_dir, 'Burned_Rock_Analysis_Report.txt')
+    report_path = os.path.join(output_dir, 'Analysis_Summary_Report.txt')
     print(f"Writing report to {report_path}...")
     
     total = stats['total']
     if total == 0: total = 1 
     
     with open(report_path, 'w', encoding='utf-8') as f:
-        f.write("BURNED ROCK ANALYSIS REPORT\n")
-        f.write("===========================\n\n")
+        f.write("ARCHAEOLOGICAL ANALYSIS REPORT\n")
+        f.write("==============================\n\n")
         
         f.write("1. DATASET OVERVIEW\n")
         f.write(f"   - Total Sites Processed: {stats['total']}\n")
         f.write(f"   - Sites with Prehistoric Evidence: {stats['prehistoric']} ({stats['prehistoric']/total*100:.1f}%)\n\n")
         
-        f.write("2. BURNED ROCK CLASSIFICATION RESULTS\n")
-        f.write(f"   - Class 1 (Scatters): {stats['c1']} sites ({stats['c1']/total*100:.1f}%)\n")
-        f.write(f"   - Class 2 (Hearths):  {stats['c2']} sites ({stats['c2']/total*100:.1f}%)\n")
-        f.write(f"   - Class 3 (Ovens):    {stats['c3']} sites ({stats['c3']/total*100:.1f}%)\n\n")
+        f.write("2. BURNED ROCK CLASSIFICATION (See 'Burned_Rock' folder)\n")
+        f.write(f"   - Class 1 (Scatters): {stats['c1']} ({stats['c1']/total*100:.1f}%)\n")
+        f.write(f"   - Class 2 (Hearths):  {stats['c2']} ({stats['c2']/total*100:.1f}%)\n")
+        f.write(f"   - Class 3 (Ovens):    {stats['c3']} ({stats['c3']/total*100:.1f}%)\n\n")
         
-        f.write("3. FEATURE ISOLATION (Sites containing ONLY one type)\n")
-        f.write(f"   - Pure Scatters (Class 1 only): {stats['c1_only']}\n")
-        f.write(f"   - Discrete Hearths (Class 2 only): {stats['c2_only']}\n")
-        f.write(f"   - Discrete Ovens (Class 3 only): {stats['c3_only']}\n")
-        if stats['c3'] > 0:
-            c3_discrete_pct = stats['c3_only'] / stats['c3'] * 100
-            f.write(f"     * Observation: {c3_discrete_pct:.1f}% of Class 3 features appear without associated scatters or hearths description.\n\n")
-        else:
-            f.write("\n")
+        f.write("3. BURNED CLAY ANALYSIS (See 'Burned_Clay' folder)\n")
+        f.write(f"   - Total Sites with Burned Clay: {stats['burned_clay']}\n")
+        f.write(f"   - Class 1 (General Keywords): {stats['bc_class_1']}\n")
+        f.write(f"     (burned clay, burnt clay, baked clay, etc.)\n")
+        f.write(f"   - Class 2 (Features/Artifacts): {stats['bc_class_2']}\n")
+        f.write(f"     (clay ball, clay blob, clay-lined hearth, etc.)\n\n")
 
-        f.write("4. TEMPORAL ANALYSIS (Top 25 Identified Groups)\n")
-        f.write("   --------------------------------------------\n")
+        f.write("4. CULTURAL TYPOLOGY (See 'Cultural_Typology' folder)\n")
+        f.write(f"   - Caddo (Eastern Influence): {stats['caddo']} sites\n")
+        f.write(f"   - Henrietta (Western Influence): {stats['henrietta']} sites\n")
+        f.write(f"   - Overlap (Both Influences): {stats['overlap']} sites\n\n")
+
+        f.write("5. SOILS & GEOMORPHOLOGY (See 'Soils' folder)\n")
+        f.write("   Inferred Contexts:\n")
+        for context, count in stats['soil_contexts'].most_common():
+             f.write(f"   - {context}: {count}\n")
+        f.write("\n")
+
+        f.write("6. TEMPORAL ANALYSIS\n")
+        f.write("   Top 25 Identified Groups:\n")
         for period, count in stats['time_periods'].most_common(25):
             pct = (count / total) * 100
             f.write(f"   - {period}: {count} ({pct:.1f}%)\n")
         f.write("\n")
-
-        f.write("5. CULTURAL OBSERVATIONS\n")
-        f.write(f"   - Prehistoric Class 3 Sites: {stats['c3_prehistoric']}\n")
-        f.write(f"   - Potential Historic/Unclassified Class 3 Sites: {stats['c3_historic_only']}\n")
-        
-        f.write("\n6. BURNED CLAY ANALYSIS\n")
-        f.write(f"   - Total Sites with Burned Clay: {stats['burned_clay']}\n")
-        f.write(f"   - Burned Clay ONLY (No Burned Rock): {stats['burned_clay_only']}\n")
-        if stats['burned_clay'] > 0:
-            bc_total = stats['burned_clay']
-            f.write(f"   - Co-occurrence with Class 1 (Scatters): {stats['bc_with_c1']} ({stats['bc_with_c1']/bc_total*100:.1f}%)\n")
-            f.write(f"   - Co-occurrence with Class 2 (Hearths): {stats['bc_with_c2']} ({stats['bc_with_c2']/bc_total*100:.1f}%)\n")
-            f.write(f"   - Co-occurrence with Class 3 (Ovens): {stats['bc_with_c3']} ({stats['bc_with_c3']/bc_total*100:.1f}%)\n")
-            f.write(f"   - Burned Clay in Prehistoric Context: {stats['bc_prehistoric']} ({stats['bc_prehistoric']/bc_total*100:.1f}%)\n")
-        else:
-            f.write("   - No Burned Clay sites identified.\n")
-
-        f.write("\n7. KEY FINDINGS & RECOMMENDATIONS\n")
-        
-        # Dynamic Observations
-        if stats['c1'] > stats['c2'] and stats['c1'] > stats['c3']:
-            f.write("   - PREVALENCE: Dispersed scatters (Class 1) are the most common manifestation of burned rock in this dataset.\n")
-            
-        if stats['c3_historic_only'] > stats['c3_prehistoric']:
-             f.write("   - POTENTIAL BIAS: A majority of Class 3 (Oven) sites do NOT contain explicit prehistoric keywords.\n")
-             f.write("     * Recommendation: Review 'Class 3' sites manually to ensure Historic trash pits or fireplaces are not being misclassified.\n")
-        else:
-             f.write("   - PREHISTORIC CONTEXT: A majority of Class 3 sites contain prehistoric evidence, supporting the classification of earth ovens.\n")
-             
-        if stats['c2'] < stats['c3']:
-             f.write("   - FEATURE VISIBILITY: 'Ovens' (Class 3) are reported more frequently than 'Hearths' (Class 2).\n")
-             f.write("     * This may indicate that large features (middens/mounds) are more easily identified during survey than smaller hearth features.\n")
-             
-        f.write("\n   - NEXT STEPS:\n")
-        f.write("     * Use ArcPro to plot 'Class 3' sites. Perform a Hot Spot Analysis to identify intensive processing zones.\n")
-        f.write("     * Filter the dataset using the 'Is_Prehistoric' column to create a clean prehistoric distribution map.\n")
 
 def write_methodology_report(output_dir):
     report_path = os.path.join(output_dir, 'Methodology_Summary.txt')
     print(f"Writing methodology summary to {report_path}...")
     
     with open(report_path, 'w', encoding='utf-8') as f:
-        f.write("""# Burned Rock Analysis - Methodology Summary
+        f.write("""# Methodology Summary
 
-## 1. Data Preparation (`process_sites.py`)
-The raw CSV export from ArcPro/Database often contains text fields with formatting issues (embedded newlines, quotes) or Windows-specific limitations (integer overflow on field size). The processing step performs the following:
-- **Field Concatenation:** Combines relevant descriptive text fields (e.g., `Site_Description`, `Features`, `Artifacts`) into a single searchable text block (`Concat_site_variables`).
-- **Sanitization:** Removes hidden characters (carriage returns), replaces smart quotes with standard quotes, and ensures `utf-8` encoding.
-- **Handling Limits:** Automatically adjusts the CSV field size limit to handle extremely large text descriptions.
+## 1. Classification Logic
 
-## 2. Classification Logic (`classify_sites.py`)
-The core classification uses a **Keyword-Driven Approach** supplemented by **Robust Validation Rules** to ensure accuracy.
+### A. Burned Rock Features
+- **Class 1 (Scatters):** Dispersed thermal refuse (e.g., "fire cracked rock", "burned rock").
+- **Class 2 (Hearths):** Discrete thermal features (e.g., "hearth", "rock concentration").
+- **Class 3 (Ovens):** Earth oven facilities (e.g., "burned rock midden", "oven", "pit feature").
 
-### A. Feature Classification (Burned Rock & Clay)
-The script processes text through several stages:
-1.  **Normalization:** Lowercasing and punctuation removal.
-2.  **Typo Correction:** Automatically identifies and fixes common typos (e.g., "herth" -> "hearth", "bunred" -> "burned") using fuzzy matching against a target dictionary.
-3.  **Keyword Search with Validation:**
-    *   **Class 1 (Scatters):** "fire cracked rock", "burned rock", etc.
-    *   **Class 2 (Hearths):** "hearth", "burned rock concentration", etc.
-    *   **Class 3 (Ovens):** "earth oven", "burned rock midden", etc.
-    *   **Burned Clay:** "burned clay", "daub", "vitrified clay", "clay balls".
+### B. Burned Clay Classification
+- **Class 1 (General):** Presence of generic terms like "burned clay", "baked clay", "daub".
+- **Class 2 (Features/Artifacts):** Presence of specific formed items or features: "clay ball", "clay blob", "clay-lined hearth", "clay nodule".
 
-**Validation Rules:**
-*   **Negation Detection:** Matches are ignored if preceded by "no", "not", "lack", or "absence" (e.g., "no oven features").
-*   **Context Exclusion:** Matches are ignored if exclusion terms appear nearby (e.g., "oven" is ignored if "stove", "enamel", or "microwave" are present).
-*   **Dependency Checks:** Specific terms like "hearth" only trigger a positive classification if associated **rock material** (e.g., "stone", "limestone", "fcr") is confirmed present and not negated. This prevents "oxidized clay hearths" (without rock) from being misclassified as Burned Rock features.
+### C. Cultural Typology
+Analysis of Eastern vs. Western influences based on diagnostic artifacts.
+- **Class 1 (Caddo/Eastern):** Defined by Caddoan ceramics (e.g., "grog tempered", "Williams Plain", "Poynor Engraved") and lithics ("Alba", "Bonham", "Gahagan").
+- **Class 2 (Henrietta/Western):** Defined by Plains/Henrietta traits (e.g., "shell tempered", "Nocona", "Washita", "Harrell", "bison scapula hoe").
+- **Class 3 (Overlap):** Sites containing diagnostic elements from both classes.
 
-**Output:**
-- Boolean flags (e.g., `Class_1_Found`).
-- Keyword lists (e.g., `Class_1_Keywords`) documenting *exactly* which terms triggered the classification.
-- "Burned Clay Only" flag for sites with burned clay but no burned rock.
+### D. Time Period & Expert Priority
+- **Expert Classification:** If a site matches an entry in the Expert Dataset, the `refined_context` from the expert is prioritized and labeled as "Prioritized expert classification".
+- **Inference:** Otherwise, the system infers time periods from diagnostic artifacts and keywords.
+- **Is_Prehistoric:** Defaults to "No Data". Sets to TRUE if prehistoric evidence is found. Sets to FALSE only if explicit Historic evidence is found AND no prehistoric evidence exists.
 
-### B. Temporal Analysis (Time Period Inference)
-Time periods are determined using a hierarchical two-step process to ensure maximum specificity.
+### E. Soil & Geomorphology
+- Inferences are drawn from soil descriptions (e.g., "deep alluvium" -> Paleoindian potential, "sandy loam terrace" -> Archaic potential).
 
-1.  **Diagnostic Artifact Matching:**
-    - The text is cross-referenced against a dictionary of **817 diagnostic artifacts** (e.g., "Clovis", "Perdiz", "Pedernales").
-    - Each artifact is mapped to a specific time period based on the project schema (e.g., "Perdiz" -> "Late Prehistoric II (Toyah Phase)").
-
-2.  **Explicit Period Keywords:**
-    - The text is searched for explicit mentions of time periods (e.g., "Republic of Texas", "Civil War", "Austin Phase").
-
-3.  **Inference Fallback:**
-    - If no specific artifacts or period names are found, the script checks for general context keywords (e.g., "lithic", "flake") to assign "Inferred: Prehistoric" or "Inferred: Historic".
-
-**Hierarchy of Specificity:**
-The system prioritizes specific labels (e.g., "Paleoindian - Early") over general ones ("Paleoindian").
-
-## 3. Reporting (`generate_report.py`)
-The final step aggregates the site-level data to produce:
-- **Statistical Summary:** Counts and percentages for all classes and time periods.
-- **Co-occurrence Analysis:** How often Burned Clay appears with each rock class.
-- **Visualizations:** Bar charts for class distribution and time periods, and pie charts for prehistoric context.
+## 2. Relationship Analysis
+A text co-occurrence analysis scans for associations between soil types, site types, and artifacts to identify patterns (e.g., "Paleoindian" sites associated with "Deep Alluvium").
 """)
 
-def main(input_file=DEFAULT_INPUT_FILE):
-    print("--- Burned Rock Analysis Tool ---")
+def move_relationship_files(output_dir):
+    # Files generated by classify_sites.py in root
+    files = ['relationship_analysis.txt', 'relationship_summary.txt']
+    dest = output_dir # Root of Analysis_Reports
 
-    # Priority:
-    # 1. Command line argument
-    # 2. Environment variable
-    # 3. Default relative path
+    for filename in files:
+        if os.path.exists(filename):
+            print(f"Moving {filename} to {dest}...")
+            shutil.move(filename, os.path.join(dest, filename))
+        else:
+            print(f"Warning: {filename} not found (may not have been generated).")
+
+def main(input_file=DEFAULT_INPUT_FILE):
+    print("--- Archaeological Analysis Reporting ---")
 
     if len(sys.argv) > 1:
         input_file = sys.argv[1]
@@ -304,13 +288,16 @@ def main(input_file=DEFAULT_INPUT_FILE):
         input_file = DEFAULT_INPUT_FILE
     
     ensure_dir(REPORT_DIR)
+    for sub in SUBFOLDERS:
+        ensure_dir(os.path.join(REPORT_DIR, sub))
     
     stats = analyze_data(input_file)
     write_text_report(stats, REPORT_DIR)
     write_methodology_report(REPORT_DIR)
     generate_charts(stats, REPORT_DIR)
+    move_relationship_files(REPORT_DIR)
     
-    print(f"\nAnalysis complete. Report and charts saved to: {os.path.abspath(REPORT_DIR)}")
+    print(f"\nAnalysis complete. Reports and charts saved to: {os.path.abspath(REPORT_DIR)}")
 
 if __name__ == "__main__":
     import argparse
