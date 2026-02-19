@@ -1,285 +1,138 @@
 import csv
-import csv_utils_helpers
-
-# Increase CSV field size limit to handle large fields
-csv_utils_helpers.increase_csv_field_size_limit()
-import json
-import os
-import csv_utils_helpers
-
-# Increase CSV field size limit to handle large fields
-csv_utils_helpers.increase_csv_field_size_limit()
-
-DEFAULT_CONFIG_FILE = 'config.json'
-INPUT_FILE = 'p3_points_export_for_cleaning.csv'
-OUTPUT_FILE = 'p3_points_concatenated.csv'
-
-# Default columns if config is missing
-DEFAULT_COLUMNS_TO_CONCAT = [
-    'type_site', 'explain', 'additional', 'surf_tech', 'map_meth',
-    'test_meth', 'exca_meth', 'records', 'materials', 'samples',
-    'time_occ', 'drainage', 'soil_desc', 'surf_tex', 'visible',
-    'env_desc', 'time_desc', 'site_size', 'basis', 'cult_desc',
-    'basis_size', 'artifact', 'intact', 'value', 'invest',
-    'disc_desc', 'unmatched'
-import csv_utils
 import sys
-import json
-import argparse
 import os
+import argparse
 
 # Increase CSV field size limit to handle large fields
-csv_utils.increase_field_size_limit()
+max_int = sys.maxsize
+while True:
+    try:
+        csv.field_size_limit(max_int)
+        break
+    except OverflowError:
+        max_int = int(max_int/10)
 
-DEFAULT_INPUT_FILE = '/tmp/file_attachments/Analysis/p3_points_export_for_cleaning.csv'
-DEFAULT_OUTPUT_FILE = '/tmp/p3_points_concatenated.csv'
 INPUT_FILE = 'p3_points_export_for_cleaning.csv'
 OUTPUT_FILE = 'p3_points_concatenated.csv'
 
-DEFAULT_COLUMNS_TO_CONCAT = [
-    'type_site',
-    'explain',
-    'additional',
-    'surf_tech',
-    'map_meth',
-    'test_meth',
-    'exca_meth',
-    'records',
-    'materials',
-    'samples',
-    'time_occ',
-    'drainage',
-    'soil_desc',
-    'surf_tex',
-    'visible',
-    'env_desc',
-    'time_desc',
-    'site_size',
-    'basis',
-    'cult_desc',
-    'basis_size',
-    'artifact',
-    'intact',
-    'value',
-    'invest',
-    'disc_desc',
-    'unmatched'
+COLUMNS_TO_CONCAT = [
+    'type_site', 'sitename', 'explain', 'additional', 'observe', 'surface', 'surf_tech',
+    'map_meth', 'test_meth', 'exca_meth', 'records', 'materials', 'materials_collected',
+    'samples', 'time_occ', 'desc_loc', 'drainage', 'soil_desc', 'surf_tex', 'visible',
+    'env_desc', 'time_desc', 'site_size', 'basis', 'cult_desc', 'basis_size',
+    'artifact', 'intact', 'value', 'invest', 'disc_desc', 'unmatched'
 ]
-
-def load_config(config_path):
-    """
-    Loads configuration from a JSON file.
-    Returns a dictionary with configuration or empty dict if file not found/invalid.
-    """
-    if not os.path.exists(config_path):
-        print(f"Config file {config_path} not found. Using defaults.")
-        return {}
-    Load configuration from a JSON file.
-    Returns a dictionary with configuration or None if loading fails.
-    """
-    if not os.path.exists(config_path):
-        return None
-
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except json.JSONDecodeError as e:
-        print(f"Error parsing config file: {e}. Using defaults.")
-        return {}
-    except Exception as e:
-        print(f"Error reading config file: {e}. Using defaults.")
-        return {}
-    except Exception as e:
-        print(f"Error loading config file {config_path}: {e}")
-        return None
 
 def clean_value(val):
     if val is None:
         return ""
-    # Replace newlines with spaces and double quotes with single quotes to ensure robust CSV structure
+    # Replace newlines with spaces and double quotes with single quotes
     return str(val).replace('\r', ' ').replace('\n', ' ').replace('"', "'").strip()
 
 def should_skip(val):
-    """
-    Returns True if the value should be skipped (e.g. 'No Data', 'False', empty).
-    """
-    v = csv_utils_helpers.clean_value(val, lower=True)
+    v = clean_value(val).lower()
     return v in ['no data', 'false', '']
 
-def main(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
-    print(f"Reading from {input_file}...")
+def load_expert_data(expert_file):
+    expert_data = {}
+    if not expert_file:
+        return expert_data
     
-    with open(input_file, 'r', encoding='utf-8', errors='replace', newline='') as fin:
-def main(input_file=None, output_file=None, config_file=DEFAULT_CONFIG_FILE):
-    # Load Config
-    config = load_config(config_file)
-
-    # Determine Input/Output files (CLI args override config, which overrides defaults)
-    input_path = input_file or config.get('input_file') or INPUT_FILE
-    output_path = output_file or config.get('output_file') or OUTPUT_FILE
-    columns_to_concat = config.get('columns_to_concat', DEFAULT_COLUMNS_TO_CONCAT)
-    
-    print(f"Reading from {input_path}...")
-
+    print(f"Loading expert classifications from {expert_file}...")
     try:
-        with open(input_path, 'r', encoding='utf-8', errors='replace', newline='') as fin:
-            reader = csv.DictReader(fin)
-            fieldnames = reader.fieldnames if reader.fieldnames else []
+        with open(expert_file, 'r', encoding='utf-8', errors='replace', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                trinomial = clean_value(row.get('trinomial'))
+                if trinomial:
+                    expert_data[trinomial] = {
+                        'refined_context': clean_value(row.get('refined_context')),
+                        'citation': clean_value(row.get('citation'))
+                    }
+    except FileNotFoundError:
+        print(f"Warning: Expert file '{expert_file}' not found. Skipping expert data.")
+    except Exception as e:
+        print(f"Error loading expert file: {e}")
 
-            # Check if all target columns exist
-            missing_cols = [c for c in columns_to_concat if c not in fieldnames]
-            if missing_cols:
-                print(f"Warning: The following columns were not found in the input CSV: {missing_cols}")
-def parse_arguments():
-    parser = argparse.ArgumentParser(description='Process site data.')
-    parser.add_argument('--input', '-i', default='p3_points_export_for_cleaning.csv', help='Input CSV file path')
-    parser.add_argument('--output', '-o', default='p3_points_concatenated.csv', help='Output CSV file path')
-    return parser.parse_args()
+    return expert_data
 
 def main():
-    parser = argparse.ArgumentParser(description='Process site data and concatenate columns.')
-    parser.add_argument('--config', type=str, default='config.json', help='Path to configuration file')
+    parser = argparse.ArgumentParser(description="Process site data and concatenate columns.")
+    parser.add_argument('--input', '-i', default=INPUT_FILE, help='Input CSV file path')
+    parser.add_argument('--output', '-o', default=OUTPUT_FILE, help='Output CSV file path')
+    parser.add_argument('--expert-file', '-e', help='Path to expert classified CSV file')
     args = parser.parse_args()
 
-    # Load configuration
-    config = load_config(args.config)
-    
-    if config:
-        print(f"Loaded configuration from {args.config}")
-        input_file = config.get('input_file', DEFAULT_INPUT_FILE)
-        output_file = config.get('output_file', DEFAULT_OUTPUT_FILE)
-        columns_to_concat = config.get('columns_to_concat', DEFAULT_COLUMNS_TO_CONCAT)
-    else:
-        print(f"Configuration file {args.config} not found or invalid. Using defaults.")
-        input_file = DEFAULT_INPUT_FILE
-        output_file = DEFAULT_OUTPUT_FILE
-        columns_to_concat = DEFAULT_COLUMNS_TO_CONCAT
+    input_file = args.input
+    output_file = args.output
+    expert_file = args.expert_file
 
     print(f"Reading from {input_file}...")
 
-    try:
-        with open(input_file, 'r', encoding='utf-8', errors='replace', newline='') as fin:
-            reader = csv.DictReader(fin)
-            fieldnames = reader.fieldnames if reader.fieldnames else []
-    args = parse_arguments()
+    if not os.path.exists(input_file):
+        print(f"Error: Input file '{input_file}' not found.")
+        return
 
-    if not os.path.exists(args.input):
-        print(f"Error: Input file '{args.input}' not found.")
-        sys.exit(1)
+    expert_data = load_expert_data(expert_file)
 
-    print(f"Reading from {args.input}...")
-    
-    with open(args.input, 'r', encoding='utf-8', errors='replace', newline='') as fin:
+    with open(input_file, 'r', encoding='utf-8', errors='replace', newline='') as fin:
         reader = csv.DictReader(fin)
         fieldnames = reader.fieldnames if reader.fieldnames else []
         
-        # Check if all target columns exist
         missing_cols = [c for c in COLUMNS_TO_CONCAT if c not in fieldnames]
         if missing_cols:
-            print(f"Warning: The following columns were not found in the input CSV: {missing_cols}")
-            # We will proceed but skip missing columns for concatenation
-        
-        # Add the new column to fieldnames, ensuring no duplicates if re-running
+            print(f"Warning: The following columns were not found: {missing_cols}")
+
+        # Determine new fieldnames
         base_fieldnames = [f for f in fieldnames if f != 'Concat_site_variables']
         new_fieldnames = base_fieldnames + ['Concat_site_variables']
         
+        # Add expert columns if not present
+        if 'refined_context' not in new_fieldnames:
+            new_fieldnames.append('refined_context')
+        if 'citation' not in new_fieldnames:
+            new_fieldnames.append('citation')
+
         print(f"Writing to {output_file}...")
         with open(output_file, 'w', encoding='utf-8', newline='') as fout:
-        print(f"Writing to {args.output}...")
-        with open(args.output, 'w', encoding='utf-8', newline='') as fout:
             writer = csv.DictWriter(fout, fieldnames=new_fieldnames)
             writer.writeheader()
             
             row_count = 0
             for row in reader:
-                # Clean all fields in the row to ensure no newlines exist in the output
-                clean_row = {k: csv_utils_helpers.clean_value(v) for k, v in row.items()}
-            # Add the new column to fieldnames
-            base_fieldnames = [f for f in fieldnames if f != 'Concat_site_variables']
-            new_fieldnames = base_fieldnames + ['Concat_site_variables']
-
-            print(f"Writing to {output_path}...")
-            with open(output_path, 'w', encoding='utf-8', newline='') as fout:
-                writer = csv.DictWriter(fout, fieldnames=new_fieldnames)
-                writer.writeheader()
+                clean_row = {k: clean_value(v) for k, v in row.items()}
+                trinomial = clean_row.get('trinomial')
                 
-                row_count = 0
-                for row in reader:
-                    # Clean all fields
-                    clean_row = {k: csv_utils_helpers.clean_value(v) for k, v in row.items()}
-
-                    concat_parts = []
-                    for col in columns_to_concat:
-                        if col in clean_row:
-                            val = clean_row[col]
-                            if not should_skip(val):
-                                concat_parts.append(f"{col}: {val};")
-
-                    clean_row['Concat_site_variables'] = " ".join(concat_parts)
-                    writer.writerow(clean_row)
-                    row_count += 1
-
-                    if row_count % 1000 == 0:
-                        print(f"Processed {row_count} rows...")
+                # Check for expert match
+                expert_info = expert_data.get(trinomial)
+                if expert_info:
+                    clean_row['refined_context'] = expert_info['refined_context']
+                    clean_row['citation'] = expert_info['citation']
                 
-                print(f"Finished processing {row_count} rows.")
+                concat_parts = []
+                for col in COLUMNS_TO_CONCAT:
+                    if col in clean_row:
+                        val = clean_row[col]
+                        if not should_skip(val):
+                            concat_parts.append(f"{col}: {val};")
                 
-    except FileNotFoundError:
-        print(f"Error: Input file '{input_path}' not found.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-            # Check if all target columns exist
-            missing_cols = [c for c in columns_to_concat if c not in fieldnames]
-            if missing_cols:
-                print(f"Warning: The following columns were not found in the input CSV: {missing_cols}")
-                # We will proceed but skip missing columns for concatenation
+                # Append refined_context to Concat_site_variables if it exists
+                # This ensures the expert classification is picked up by the classifier's keyword search
+                if expert_info and expert_info['refined_context']:
+                     concat_parts.append(f"refined_context: {expert_info['refined_context']};")
 
-            # Add the new column to fieldnames, ensuring no duplicates if re-running
-            base_fieldnames = [f for f in fieldnames if f != 'Concat_site_variables']
-            new_fieldnames = base_fieldnames + ['Concat_site_variables']
-
-            print(f"Writing to {output_file}...")
-            with open(output_file, 'w', encoding='utf-8', newline='') as fout:
-                writer = csv.DictWriter(fout, fieldnames=new_fieldnames)
-                writer.writeheader()
+                clean_row['Concat_site_variables'] = " ".join(concat_parts)
                 
-                row_count = 0
-                for row in reader:
-                    # Clean all fields in the row to ensure no newlines exist in the output
-                    clean_row = {k: clean_value(v) for k, v in row.items()}
-
-                    concat_parts = []
-                    for col in columns_to_concat:
-                        if col in clean_row:
-                            val = clean_row[col]
-                            if not should_skip(val):
-                                # Format: "Header: Value;"
-                                # Value is already cleaned of newlines
-                                concat_parts.append(f"{col}: {val};")
-
-                    clean_row['Concat_site_variables'] = " ".join(concat_parts)
-                    writer.writerow(clean_row)
-                    row_count += 1
-
-                    if row_count % 1000 == 0:
-                        print(f"Processed {row_count} rows...")
+                # Filter clean_row to only include keys in new_fieldnames
+                output_row = {k: clean_row.get(k, '') for k in new_fieldnames}
                 
-                print(f"Finished processing {row_count} rows.")
-    except FileNotFoundError:
-        print(f"Error: Input file '{input_file}' not found.")
-        sys.exit(1)
+                writer.writerow(output_row)
+                row_count += 1
+
+                if row_count % 1000 == 0:
+                    print(f"Processed {row_count} rows...")
+
+            print(f"Finished processing {row_count} rows.")
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Concatenate site variables from a CSV file.")
-    parser.add_argument("input", nargs="?", default=INPUT_FILE, help="Path to the input CSV file.")
-    parser.add_argument("output", nargs="?", default=OUTPUT_FILE, help="Path to the output CSV file.")
-    args = parser.parse_args()
-
-    main(args.input, args.output)
-    parser.add_argument("--input", "-i", help="Path to the input CSV file.")
-    parser.add_argument("--output", "-o", help="Path to the output CSV file.")
-    parser.add_argument("--config", "-c", default=DEFAULT_CONFIG_FILE, help="Path to the JSON config file.")
-    args = parser.parse_args()
-
-    main(input_file=args.input, output_file=args.output, config_file=args.config)
+    main()
