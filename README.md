@@ -1,84 +1,59 @@
-# Archaeological Site Data Processing Pipeline
+# Archaeological Site LLM Classification Pipeline
 
-This repository contains a set of Python scripts for processing, classifying, and analyzing archaeological site data (specifically burned rock features) from CSV exports.
+This repository contains a robust pipeline that processes raw archaeological site data, converts it into a spatial GeoPackage database, and uses Anthropic's Claude LLM to intelligently classify the sites based on complex text descriptions.
 
-## Overview
+## Prerequisites
 
-The pipeline consists of three main stages:
-1.  **Data Cleaning & Preparation:** Concatenating relevant text fields and standardizing data format.
-2.  **Classification:** Applying keyword-based logic and exclusion rules to categorize sites (e.g., Hearth vs. Oven vs. Scatter).
-3.  **Reporting:** Generating statistical summaries and visualizations.
+Before running the pipeline, ensure you have the required dependencies and an Anthropic API key.
 
-## Scripts
-
-### 1. `process_sites.py`
-**Purpose:** Prepares the raw data for classification.
--   **Input:** `p3_points_export_for_cleaning.csv` (default path in code)
--   **Output:** `p3_points_concatenated.csv`
--   **Function:**
-    -   Reads the raw export.
-    -   Concatenates multiple descriptive columns (e.g., `explain`, `materials`, `desc_loc`) into a single `Concat_site_variables` field.
-    -   Cleans text by removing newlines and normalizing quotes.
-
-### 2. `classify_sites.py`
-**Purpose:** Classifies sites based on the concatenated text descriptions.
--   **Input:** `p3_points_concatenated.csv`
--   **Output:** `p3_points_classified.csv`
--   **Function:**
-    -   **Class 1:** Burned Rock Scatters
-    -   **Class 2:** Hearths (requires rock context)
-    -   **Class 3:** Earth Ovens / Middens
-    -   **Burned Clay:** Detects presence of burned clay.
-    -   **Time Period:** Infers time periods based on artifact keywords (using `extracted_artifacts.json`) and specific terms.
-    -   Includes logic for typo correction, negation handling (e.g., "no hearths"), and context exclusion (e.g., "microwave oven").
-
-### 3. `generate_report.py`
-**Purpose:** Analyzes the classified data and produces a report.
--   **Input:** `p3_points_classified.csv`
--   **Output:** `Burned_Rock_Report/` directory containing text reports and charts.
--   **Function:**
-    -   Calculates statistics for each class and time period.
-    -   Generates a `Burned_Rock_Analysis_Report.txt` summary.
-    -   Creates visualizations (Bar charts, Pie charts) if `matplotlib` is installed.
-
-### 4. `run_tests.py`
-**Purpose:** Runs the unit test suite to ensure code reliability.
--   **Function:** Discovers and runs all tests in the `tests/` directory.
-
-## Execution Order
-
-To run the full pipeline:
-
-1.  **Run Tests (Optional but Recommended):**
-    ```bash
-    python run_tests.py
-    ```
-    Ensure all tests pass before processing data.
-
-2.  **Process Data:**
-    ```bash
-    python process_sites.py
-    ```
-
-3.  **Classify Sites:**
-    ```bash
-    python classify_sites.py
-    ```
-
-4.  **Generate Report:**
-    ```bash
-    python generate_report.py
-    ```
-
-## Testing
-
-The repository includes a `tests/` directory containing unit tests for key utility functions, particularly `clean_value`, which is critical for consistent data processing across all scripts.
-
-To run the tests manually:
 ```bash
-python run_tests.py
+pip install pandas geopandas shapely anthropic matplotlib
+export ANTHROPIC_API_KEY="your-api-key-here"
 ```
-Or using the standard library module:
+
+## How to Run
+
+We have combined the entire 4-step pipeline into a single Master Orchestrator script for maximum efficiency.
+
+To run the entire process end-to-end (Data Prep -> GeoPackage Creation -> LLM Classification -> Reporting), simply run:
+
 ```bash
-python -m unittest discover tests
+python run_pipeline.py
 ```
+
+### Safety and Resuming
+Because processing thousands of records with an LLM takes time and API credits, the pipeline safely saves its progress to the database (`archaeology.gpkg`) every 500 rows.
+
+If your computer turns off, you lose internet, or you hit an API limit halfway through, **do not worry**. Simply run the pipeline again, and add the `--skip-prep` flag. It will automatically detect where the LLM left off in the database and resume processing without losing any data!
+
+```bash
+python run_pipeline.py --skip-prep
+```
+
+### Testing a Small Batch
+If you just want to test the LLM on the first 5 rows to make sure everything looks good before doing the whole dataset:
+
+```bash
+python run_pipeline.py --limit 5
+```
+
+---
+
+## Under the Hood: The 4 Steps
+
+If you prefer to run the scripts manually one-by-one, here is what `run_pipeline.py` is doing behind the scenes:
+
+### 1. Pre-Process Data (`process_sites.py`)
+Reads your raw data and intelligently concatenates 30+ descriptive fields into a single column (`Concat_site_variables`). It preserves the context of each field (e.g., `water: Trinity River | soil_desc: Sandy loam`) so the LLM understands exactly what the data means.
+
+### 2. Migrate to Database (`migrate_to_gpkg.py`)
+Takes the processed CSV and converts it into a robust SQLite-backed spatial database (GeoPackage). It uses the `wgs_lat` and `wgs_long` coordinates to map the points into WGS84 (EPSG:4326), bypassing UTM/State Plane zone conflicts.
+
+### 3. Run LLM Classification (`run_llm.py`)
+Connects to Anthropic's API to read the concatenated text for each site and extract structured JSON classifications.
+- It infers time periods, checks for Burned Rock/Clay, and typologies.
+- It automatically cross-validates its own reasoning.
+- It compares its findings against the Expert classifications.
+
+### 4. Generate Reports (`generate_report.py`)
+Reads the fully classified GeoPackage and generates summary statistics, charts, and a detailed text report highlighting LLM vs Expert disagreements.
