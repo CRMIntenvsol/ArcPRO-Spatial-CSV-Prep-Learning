@@ -7,7 +7,7 @@ This repository contains a robust pipeline that processes raw archaeological sit
 Before running the pipeline, ensure you have the required dependencies and an Anthropic API key.
 
 ```bash
-pip install pandas geopandas shapely anthropic matplotlib
+pip install pandas geopandas shapely anthropic matplotlib python-dotenv
 export ANTHROPIC_API_KEY="your-api-key-here"
 ```
 

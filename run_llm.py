@@ -2,6 +2,13 @@ import argparse
 import geopandas as gpd
 import os
 import sys
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from llm_classifier import LLMClassifier
 import time
 
