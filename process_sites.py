@@ -11,7 +11,7 @@ import csv_utils_helpers
 csv_utils_helpers.increase_csv_field_size_limit()
 
 DEFAULT_CONFIG_FILE = 'config.json'
-INPUT_FILE = 'p3_points_export_for_cleaning.csv'
+INPUT_FILE = 'InputData_ Flawless_Master_SiteData_NoAnalysis.csv'
 OUTPUT_FILE = 'p3_points_concatenated.csv'
 
 # Default columns if config is missing
@@ -31,9 +31,9 @@ import os
 # Increase CSV field size limit to handle large fields
 csv_utils.increase_field_size_limit()
 
-DEFAULT_INPUT_FILE = '/tmp/file_attachments/Analysis/p3_points_export_for_cleaning.csv'
+DEFAULT_INPUT_FILE = '/tmp/file_attachments/Analysis/InputData_ Flawless_Master_SiteData_NoAnalysis.csv'
 DEFAULT_OUTPUT_FILE = '/tmp/p3_points_concatenated.csv'
-INPUT_FILE = 'p3_points_export_for_cleaning.csv'
+INPUT_FILE = 'InputData_ Flawless_Master_SiteData_NoAnalysis.csv'
 OUTPUT_FILE = 'p3_points_concatenated.csv'
 
 DEFAULT_COLUMNS_TO_CONCAT = [
@@ -132,7 +132,7 @@ def main(input_file=None, output_file=None, config_file=DEFAULT_CONFIG_FILE):
                 print(f"Warning: The following columns were not found in the input CSV: {missing_cols}")
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Process site data.')
-    parser.add_argument('--input', '-i', default='p3_points_export_for_cleaning.csv', help='Input CSV file path')
+    parser.add_argument('--input', '-i', default='InputData_ Flawless_Master_SiteData_NoAnalysis.csv', help='Input CSV file path')
     parser.add_argument('--output', '-o', default='p3_points_concatenated.csv', help='Output CSV file path')
     return parser.parse_args()
 

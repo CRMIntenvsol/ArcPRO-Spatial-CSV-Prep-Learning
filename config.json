@@ -1,5 +1,5 @@
 {
-    "input_file": "/tmp/file_attachments/Analysis/p3_points_export_for_cleaning.csv",
+    "input_file": "InputData_ Flawless_Master_SiteData_NoAnalysis.csv",
     "output_file": "/tmp/p3_points_concatenated.csv",
     "columns_to_concat": [
         "type_site",
